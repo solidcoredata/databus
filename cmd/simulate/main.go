@@ -73,3 +73,30 @@ func setupUINode() *BusNode {
 		},
 	}
 }
+
+func setupDataNode() *BusNode {
+	return &BusNode{
+		Roles: []Role{
+			{
+				Name: "params",
+				Properties: []Property{
+					{Name: "name", Type: "text"},
+				},
+				Fields: []KV{
+					{"name": "title_contains"},
+				},
+			},
+			{
+				Name: "arity",
+				Properties: []Property{
+					{Name: "name", Type: "text"},
+				},
+				Fields: []KV{
+					{"name": "title"},
+					{"name": "author"},
+				},
+			},
+		},
+	}
+}
+
