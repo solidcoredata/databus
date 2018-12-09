@@ -7,14 +7,25 @@ import (
 
 func main() {
 	fmt.Println("simulate data bus")
-	a := &app{}
+	uinode := setupUINode()
+	datanode := setupDataNode()
+	bind := &Bind{Together: []*BusNode{uinode, datanode}}
+	a := &app{
+		Bind: []*Bind{bind},
+	}
 	http.ListenAndServe(":8080", a)
 }
 
-type app struct{}
+type app struct {
+	Bind []*Bind
+}
 
 func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("I'm alive!"))
+}
+
+type Bind struct {
+	Together []*BusNode
 }
 
 type Property struct {
@@ -32,11 +43,13 @@ type Role struct {
 }
 
 type BusNode struct {
+	Type  string
 	Roles []Role
 }
 
 func setupUINode() *BusNode {
 	return &BusNode{
+		Type: "solidcoredata.org/ui/sld",
 		Roles: []Role{
 			{
 				Name: "props1",
@@ -64,10 +77,12 @@ func setupUINode() *BusNode {
 				Name: "arity",
 				Properties: []Property{
 					{Name: "name", Type: "text"},
+					{Name: "display", Type: "text"},
+					{Name: "width", Type: "int"},
 				},
 				Fields: []KV{
-					{"name": "title"},
-					{"name": "author"},
+					{"name": "title", "Display": "Book Title", "Width": 200},
+					{"name": "author", "Display": "Book Author", "Width": 100},
 				},
 			},
 		},
@@ -76,6 +91,7 @@ func setupUINode() *BusNode {
 
 func setupDataNode() *BusNode {
 	return &BusNode{
+		Type: "solidcoredata.org/data/table",
 		Roles: []Role{
 			{
 				Name: "params",
@@ -99,4 +115,3 @@ func setupDataNode() *BusNode {
 		},
 	}
 }
-
