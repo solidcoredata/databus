@@ -21,6 +21,18 @@ type app struct {
 }
 
 func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	for _, b := range a.Bind {
+		for _, bn := range b.Together {
+			switch bn.Type {
+			default:
+				// Nothing for now.
+			case "solidcoredata.org/data/table":
+			case "solidcoredata.org/ui/sld":
+			}
+
+		}
+	}
+
 	w.Write([]byte("I'm alive!"))
 }
 
@@ -93,6 +105,15 @@ func setupDataNode() *BusNode {
 	return &BusNode{
 		Type: "solidcoredata.org/data/table",
 		Roles: []Role{
+			{
+				Name: "data",
+				Properties: []Property{
+					{Name: "table", Type: "text"},
+				},
+				Fields: []KV{
+					{"table": "books"},
+				},
+			},
 			{
 				Name: "params",
 				Properties: []Property{
