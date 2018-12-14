@@ -4,52 +4,80 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func main() {
 	fmt.Println("simulate data bus")
 	uinode := setupUINode()
 	datanode := setupDataNode()
-	bind := &Bind{Name: "books", Together: []*BusNode{uinode, datanode}}
 	a := &app{
-		Bind: []*Bind{bind},
+		Bind: []*Bind{
+				&Bind{Name: "books", Together: []*BusNode{uinode, datanode}},
+				&Bind{Name: "home", Together: []*BusNode{
+					{Type: "solidcoredata.org/ui/index"},
+				}},
+		},
 	}
-	err := a.Validate()
-	if err != nil {
-		log.Print(err)
+	a.Validate()
+	
+	a.Types = map[string]TypeHandler{
+		"solidcoredata.org/ui/index": func(all []*Bind, bind *Bind, w http.ResponseWriter, r *http.Request) {
+			for _, b := range all {
+				fmt.Fprintf(w, `<a href="?at=%s">%s</a><br>`, b.Name, strings.Title(b.Name))
+			}
+
+		},
+		"solidcoredata.org/ui/sld": func(all []*Bind, bind *Bind, w http.ResponseWriter, r *http.Request) {
+			bn := bind.Together[0]
+			fmt.Fprintf(w, "SLD: %q", bn.Type)
+		},
 	}
+
 
 	http.ListenAndServe(":8080", a)
 }
 
+type TypeHandler func(all []*Bind, bind *Bind, w http.ResponseWriter, r *http.Request)
+
 type app struct {
 	Bind []*Bind
+	Types map[string]TypeHandler
+	
+	bindName map[string]*Bind
 }
 
-func (a *app) Validate() error {
+func (a *app) Validate() {
+	a.bindName = make(map[string]*Bind, len(a.Bind))
 	for _, b := range a.Bind {
+		a.bindName[b.Name] = b
 		err := b.Validate()
 		if err != nil {
-			return err
+			log.Print(err)
 		}
-
 	}
-	return nil
 }
 func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for _, b := range a.Bind {
-		for _, bn := range b.Together {
-			switch bn.Type {
-			default:
-				// Nothing for now.
-			case "solidcoredata.org/data/table":
-			case "solidcoredata.org/ui/sld":
-			}
+	// First get the name of the current binding.
+	// If empty name, show index.
+	// If unknown name, show 404.
+	// If matched, lookup type and pass control to that.
+	at := r.URL.Query().Get("at")
+	if len(at) == 0 {
+		at = "home"
+}
 
-		}
+	b, found := a.bindName[at]
+	if !found {
+		http.NotFound(w, r)
+		return
 	}
-
-	fmt.Fprintf(w, "I'm alive!\nerrs: %v\n", a.Validate())
+	t, found := a.Types[b.Together[0].Type]
+	if !found {
+		http.NotFound(w, r)
+		return
+	}
+	t(a.Bind, b, w, r)
 }
 
 type Bind struct {
@@ -62,6 +90,9 @@ type Bind struct {
 func (b *Bind) errorf(f string, v ...interface{}) {
 	e := fmt.Errorf(f, v...)
 	b.errors = append(b.errors, e)
+}
+func (b *Bind) Valid() bool {
+	return len(b.errors) == 0
 }
 func (b *Bind) Err() error {
 	if len(b.errors) == 0 {
