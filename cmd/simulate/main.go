@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,14 +14,14 @@ func main() {
 	datanode := setupDataNode()
 	a := &app{
 		Bind: []*Bind{
-				&Bind{Name: "books", Together: []*BusNode{uinode, datanode}},
-				&Bind{Name: "home", Together: []*BusNode{
-					{Type: "solidcoredata.org/ui/index"},
-				}},
+			&Bind{Name: "books", Together: []*BusNode{uinode, datanode}},
+			&Bind{Name: "home", Together: []*BusNode{
+				{Type: "solidcoredata.org/ui/index"},
+			}},
 		},
 	}
 	a.Validate()
-	
+
 	a.Types = map[string]TypeHandler{
 		"solidcoredata.org/ui/index": func(all []*Bind, bind *Bind, w http.ResponseWriter, r *http.Request) {
 			for _, b := range all {
@@ -34,16 +35,113 @@ func main() {
 		},
 	}
 
-
 	http.ListenAndServe(":8080", a)
 }
 
 type TypeHandler func(all []*Bind, bind *Bind, w http.ResponseWriter, r *http.Request)
 
+const (
+	typeSLD = `"use strict"
+return {
+	Render: function(bind, root) {
+		console.log("sld", bind, root);
+	}
+}
+
+`
+
+	typeIndex = `"use strict"
+return {
+	Render: function(bind, root) {
+		console.log("index", bind, root);
+	}
+}
+
+`
+	root = `<!DOCTYPE html>
+Loading, please wait.
+<script>
+window.__run = (function(window) {
+var run = {
+	api:  {},
+	type: {},
+	bind: {},
+};
+function setStatus(msg) {
+	if(msg.length === 0) {
+		return;
+	}
+	if(console && console.log) {
+		console.log(msg)
+	}
+}
+
+run.api.getType = function(name, sub, done) {
+	var req = new XMLHttpRequest();
+	req.open("GET", "/type?name=" + encodeURIComponent(name) + "&sub=" + encodeURIComponent(sub), true);
+	req.onreadystatechange = function () {
+		if(req.readyState !== 4) {
+			return;
+		}
+		if(req.status !== 200) {
+			setStatus("Unable to contact server. Application may be down for maintenance: " + req.status);
+			done(false);
+			return;
+		}
+		setStatus("");
+
+		var t = (new Function(req.responseText))();
+		run.type[name] = t
+		done(true, t);
+	};
+	req.send();
+}
+run.api.getBind = function(name, done) {
+	var req = new XMLHttpRequest();
+	req.open("POST", "/bind?name=" + encodeURIComponent(name), true);
+	req.onreadystatechange = function () {
+		if(req.readyState !== 4) {
+			return;
+		}
+		if(req.status !== 200) {
+			setStatus("Unable to contact server. Application may be down for maintenance: " + req.status);
+			return;
+		}
+		setStatus("");
+
+		var resp = JSON.parse(req.responseText);
+		var b = resp;
+		run.bind[name] = b;
+		var t = run.type[resp.Type];
+		if(t) {
+			done(true, b, t);
+			return;
+		}
+		run.api.getType(resp.Type, "", function(ok, t) {
+			if(!ok) {
+				done(false);
+			}
+			done(true, b, t);
+		});
+	};
+	req.send();
+}
+return run;
+})();
+window.__run.api.getBind("home", function(ok, bind, type) {
+	if(!ok) {
+		return;
+	}
+	type.Render(bind, document.body);
+});
+</script>
+`
+)
+
 type app struct {
-	Bind []*Bind
+	Bind  []*Bind
 	Types map[string]TypeHandler
-	
+
 	bindName map[string]*Bind
 }
 
@@ -57,27 +155,64 @@ func (a *app) Validate() {
 		}
 	}
 }
-func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// First get the name of the current binding.
-	// If empty name, show index.
-	// If unknown name, show 404.
-	// If matched, lookup type and pass control to that.
-	at := r.URL.Query().Get("at")
-	if len(at) == 0 {
-		at = "home"
-}
 
-	b, found := a.bindName[at]
-	if !found {
+func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	switch r.URL.Path {
+	default:
 		http.NotFound(w, r)
 		return
+	case "/type":
+		if r.Method != "GET" {
+			http.NotFound(w, r)
+			return
+		}
+		q := r.URL.Query()
+		name := q.Get("name")
+		sub := q.Get("sub")
+		// TODO(daniel.theophanes): Transfer assets for control types.
+		_, _ = name, sub
+		switch name {
+		default:
+			http.NotFound(w, r)
+			return
+		case "solidcoredata.org/ui/sld":
+			w.Write([]byte(typeSLD))
+		case "solidcoredata.org/ui/index":
+			w.Write([]byte(typeIndex))
+		}
+
+	case "/bind":
+		if r.Method != "POST" {
+			http.NotFound(w, r)
+			return
+		}
+		q := r.URL.Query()
+		name := q.Get("name")
+		b, ok := a.bindName[name]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		// TODO(daniel.theophanes): Transfer configuration for bindings. Transfer all, or just computer (probably just collapsed computed).
+		_ = b
+		json.NewEncoder(w).Encode(struct{ Type string }{Type: b.Together[0].Type})
+
+	case "/":
+		if r.Method != "GET" {
+			http.NotFound(w, r)
+			return
+		}
+		// Transfer root index HTML and root javascript.
+		w.Write([]byte(root))
+
+	case "/bus":
+		if r.Method != "POST" {
+			http.NotFound(w, r)
+			return
+		}
+		// TODO(daniel.theophanes): Transfer data to and from the client.
+
 	}
-	t, found := a.Types[b.Together[0].Type]
-	if !found {
-		http.NotFound(w, r)
-		return
-	}
-	t(a.Bind, b, w, r)
 }
 
 type Bind struct {
@@ -181,11 +316,11 @@ func setupUINode() *BusNode {
 					{Name: "hide_edit", Type: "bool"},
 					{Name: "hide_delete", Type: "bool"},
 				},
-				Fields: []KV{
-					{"hide_new": false},
-					{"hide_edit": false},
-					{"hide_delete": false},
-				},
+				Fields: []KV{{
+					"hide_new":    false,
+					"hide_edit":   false,
+					"hide_delete": false,
+				}},
 			},
 			{
 				Name: "params",
