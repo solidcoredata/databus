@@ -5,58 +5,73 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"strings"
 )
 
 func main() {
 	fmt.Println("simulate data bus")
 	uinode := setupUINode()
 	datanode := setupDataNode()
+	indexnode := setupIndexNode()
 	a := &app{
 		Bind: []*Bind{
 			&Bind{Name: "books", Together: []*BusNode{uinode, datanode}},
-			&Bind{Name: "home", Together: []*BusNode{
-				{Type: "solidcoredata.org/ui/index"},
-			}},
+			&Bind{Name: "home", Together: []*BusNode{indexnode}},
 		},
 	}
 	a.Validate()
 
-	a.Types = map[string]TypeHandler{
-		"solidcoredata.org/ui/index": func(all []*Bind, bind *Bind, w http.ResponseWriter, r *http.Request) {
-			for _, b := range all {
-				fmt.Fprintf(w, `<a href="?at=%s">%s</a><br>`, b.Name, strings.Title(b.Name))
-			}
-
-		},
-		"solidcoredata.org/ui/sld": func(all []*Bind, bind *Bind, w http.ResponseWriter, r *http.Request) {
-			bn := bind.Together[0]
-			fmt.Fprintf(w, "SLD: %q", bn.Type)
-		},
-	}
-
 	http.ListenAndServe(":8080", a)
 }
-
-type TypeHandler func(all []*Bind, bind *Bind, w http.ResponseWriter, r *http.Request)
 
 const (
 	typeSLD = `"use strict"
 return {
 	Render: function(bind, root) {
 		console.log("sld", bind, root);
+		root.innerText = "My books!";
 	}
 }
-
+//# sourceURL=sld.js
 `
 
 	typeIndex = `"use strict"
+function el(tag, prop) {
+	let e = document.createElement(tag);
+	if(prop.Text) {
+		e.innerText = prop.Text;
+	}
+	if(prop.Parent) {
+		prop.Parent.appendChild(e);
+	}
+
+	return e;
+}
+var body = null;
+window.addEventListener("hashchange", function(ev) {
+	console.log(ev.newURL, ev.oldURL);
+	let name = location.hash.substring(2);
+	window.__run.api.getBind(name, function(ok, bind, type) {
+		if(!ok) {
+			return;
+		}
+		type.Render(bind, body);
+	});
+});
 return {
 	Render: function(bind, root) {
-		console.log("index", bind, root);
+		console.log(bind, root);
+		root.innerHTML = "";
+		let pages = bind.Role.pages;
+		let nav = el("div", {Parent: root});
+		body = el("div", {Parent: root});
+		for(var i = 0; i < pages.length; i++) {
+			let p = pages[i];
+			let a = el("a", {Parent: nav, Text: p.display});
+			a.href = "#!" + p.page;
+		}
 	}
 }
-
+//# sourceURL=index.js
 `
 	root = `<!DOCTYPE html>
 Loading, please wait.
@@ -140,7 +155,6 @@ window.__run.api.getBind("home", function(ok, bind, type) {
 
 type app struct {
 	Bind  []*Bind
-	Types map[string]TypeHandler
 
 	bindName map[string]*Bind
 }
@@ -194,8 +208,16 @@ func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// TODO(daniel.theophanes): Transfer configuration for bindings. Transfer all, or just computer (probably just collapsed computed).
-		_ = b
-		json.NewEncoder(w).Encode(struct{ Type string }{Type: b.Together[0].Type})
+		together := b.Together[0]
+		rr := make(map[string]interface{}, len(together.Roles))
+		for _, r := range together.Roles {
+			rr[r.Name] = r.Fields
+		}
+		type uibind struct{ Type string; Role map[string]interface{} }
+		json.NewEncoder(w).Encode(uibind{
+			Type: together.Type,
+			Role: rr,
+		})
 
 	case "/":
 		if r.Method != "GET" {
@@ -382,6 +404,26 @@ func setupDataNode() *BusNode {
 					{"name": "author"},
 				},
 				Bind: "name",
+			},
+		},
+	}
+}
+
+
+func setupIndexNode() *BusNode {
+	return &BusNode{
+		Type: "solidcoredata.org/ui/index",
+		Roles: []Role{
+			{
+				Name: "pages",
+				Properties: []Property{
+					{Name: "page", Type: "text"},
+					{Name: "display", Type: "text"},
+				},
+				Fields: []KV{
+					{"page": "home", "display": "Home"},
+					{"page": "books", "display": "Books"},
+				},
 			},
 		},
 	}
