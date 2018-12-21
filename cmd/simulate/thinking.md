@@ -24,3 +24,53 @@ project onto this node. This is used for validation / refactoring /
 and projecting properties. Binding a UI to a query should be easy.
 I'm not sure how to represent a query binding to N number of tables.
 
+So to do this, each node should have a list of bound nodes and an alias.
+Then each field must reference that alias that it binds to. For now assume
+Role names match.
+
+```go
+type Node struct {
+    Type  string
+    Roles []Role
+    Binds []Bind
+}
+type Bind struct {
+    Alias string
+    Name  string
+}
+type Side int
+const (
+    SideBoth Side = iota
+    SideLeft
+    SideRight
+)
+type NodeType struct {
+    Name string
+    Roletypes []RoleType
+}
+type Property struct {
+	Name     string
+	Type     string
+	Optional bool
+}
+type RoleType struct {
+    Name string
+    Properties []Property
+}
+type Role struct {
+    Name string
+    Side Side
+    Fields []Field // Each field must match the Node Type role properties.
+}
+type KV = map[string]interface{}
+type Field struct {
+    // Bound Alias name.
+    B  string
+    KV KV
+}
+```
+
+A database table node type may have two roles. One role
+list out the columns for the table. The other
+includes information such as what database it uses.
+That points to another node being the database.
