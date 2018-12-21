@@ -46,7 +46,7 @@ const (
 )
 type NodeType struct {
     Name string
-    Roletypes []RoleType
+    RoleTypes []RoleType
 }
 type Property struct {
 	Name     string
@@ -68,9 +68,31 @@ type Field struct {
     B  string
     KV KV
 }
+type Bus struct {
+    Nodes []Node
+    Types []NodeType
+}
 ```
 
 A database table node type may have two roles. One role
 list out the columns for the table. The other
 includes information such as what database it uses.
-That points to another node being the database.
+That points to another node that represents the database.
+
+A Composed Node is passed to the actuall control.
+It should contain only the information from the node
+and bound node fields that push property values into it.
+For now use a Normal node. Unrelated nodes or entire bound
+nodes are not passed.
+
+The Bus is what is validated as a whole before any part of it
+is used. One way to use the Bus after that is to run jobs on it.
+Jobs might include:
+ * Validate the Bus
+ * Check-point the Bus at a specific version
+ * Extract the UI nodes and generate:
+   - HTML or HTML Templates
+   - JSON that components consume
+ * Extract the data nodes and genrate a diff:
+   - Create alter scripts
+ * Extract the infrustructure needs and generate k8s yaml
