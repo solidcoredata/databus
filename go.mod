@@ -8,6 +8,8 @@ require (
 	github.com/cortesi/moddwatch v0.0.0-20181112195910-5f01cc16f2a5 // indirect
 	github.com/cortesi/termlog v0.0.0-20171116205515-87cefd5ac843 // indirect
 	github.com/fatih/color v1.7.0 // indirect
+	github.com/google/go-jsonnet v0.12.1
+	github.com/kardianos/task v0.0.0-20180920220249-6720c7c6e404
 	github.com/mattn/go-colorable v0.0.9 // indirect
 	github.com/mattn/go-isatty v0.0.4 // indirect
 	github.com/rjeczalik/notify v0.9.2 // indirect

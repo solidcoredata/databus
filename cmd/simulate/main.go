@@ -154,7 +154,7 @@ window.__run.api.getBind("home", function(ok, bind, type) {
 )
 
 type app struct {
-	Bind  []*Bind
+	Bind []*Bind
 
 	bindName map[string]*Bind
 }
@@ -213,7 +213,10 @@ func (a *app) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for _, r := range together.Roles {
 			rr[r.Name] = r.Fields
 		}
-		type uibind struct{ Type string; Role map[string]interface{} }
+		type uibind struct {
+			Type string
+			Role map[string]interface{}
+		}
 		json.NewEncoder(w).Encode(uibind{
 			Type: together.Type,
 			Role: rr,
@@ -408,7 +411,6 @@ func setupDataNode() *BusNode {
 		},
 	}
 }
-
 
 func setupIndexNode() *BusNode {
 	return &BusNode{
