@@ -95,6 +95,15 @@ func (errs *Errors) writeTo(b *strings.Builder) {
 
 type program struct{}
 
+// TODO(daniel.theophanes): determine valid types and values.
+// Need to ensure valid values can check valid node names.
+func (p *program) validType(tp string) bool {
+	return true
+}
+func (p *program) validValue(tp string, v interface{}) error {
+	return nil
+}
+
 // validate looks for the root definition, loads it,
 // then validates it for basic correctness.
 func (p *program) validate(ctx context.Context, busPath string) error {
@@ -119,6 +128,7 @@ func (p *program) validate(ctx context.Context, busPath string) error {
 		lookupNodeType
 		Node  *Node
 		Roles map[string]lookupRole
+		Binds map[string]*Bind // Key is alias.
 	}
 	type lookupBus struct {
 		Types map[string]lookupNodeType
@@ -151,21 +161,25 @@ func (p *program) validate(ctx context.Context, busPath string) error {
 			}
 			lnt.RoleTypes[r.Name] = lrt
 			for ri := range r.Properties {
-				p := &r.Properties[ri]
-				if _, ok := lrt.Properties[p.Name]; ok {
-					errs = errs.AppendMsg("bus: node type %q role %q re-defines property %q", nt.Name, r.Name, p.Name)
+				pr := &r.Properties[ri]
+				if _, ok := lrt.Properties[pr.Name]; ok {
+					errs = errs.AppendMsg("bus: node type %q role %q re-defines property %q", nt.Name, r.Name, pr.Name)
 					continue
 				}
-				lrt.Properties[p.Name] = p
+				if !p.validType(pr.Type) {
+					errs = errs.AppendMsg("bus: node type %q role %q property %q, invalid type %q", nt.Name, r.Name, pr.Name, pr.Type)
+					continue
+				}
+				lrt.Properties[pr.Name] = pr
 			}
 		}
 	}
 	for ni := range bus.Nodes {
-		// TODO(daniel.theophanes): Create bind lookups.
 		n := &bus.Nodes[ni]
 		ln := lookupNode{
 			Node:  n,
 			Roles: make(map[string]lookupRole, len(n.Roles)),
+			Binds: make(map[string]*Bind, len(n.Binds)),
 		}
 		if lnt, ok := lb.Types[n.Type]; ok {
 			ln.lookupNodeType = lnt
@@ -177,7 +191,20 @@ func (p *program) validate(ctx context.Context, busPath string) error {
 			errs = errs.AppendMsg("bus: node %q already defined", n.Name)
 			continue
 		}
+		// Create bind lookups.
 		lb.Nodes[n.Name] = ln
+		for bi := range n.Binds {
+			b := &n.Binds[bi]
+			if len(b.Alias) == 0 {
+				errs = errs.AppendMsg("bus: node %q bind index %d %q missing alias", n.Name, bi, b.Name)
+				continue
+			}
+			if _, ok := ln.Binds[b.Alias]; ok {
+				errs = errs.AppendMsg("bus: node %q already bound alias %q", n.Name, b.Alias)
+				continue
+			}
+			ln.Binds[b.Alias] = b
+		}
 		for ri := range n.Roles {
 			r := &n.Roles[ri]
 			lr := lookupRole{
@@ -194,16 +221,45 @@ func (p *program) validate(ctx context.Context, busPath string) error {
 				continue
 			}
 			ln.Roles[r.Name] = lr
-			// TODO(daniel.theophanes): Verify fields and aliases.
+			// Verify fields and aliases.
+			for fi, f := range r.Fields {
+				if len(f.Alias) > 0 {
+					if _, ok := ln.Binds[f.Alias]; !ok {
+						errs = errs.AppendMsg("bus: node %q role %q field index %d invlid bind alias %q", n.Name, r.Name, fi, f.Alias)
+						continue
+					}
+				}
+				for key, value := range f.KV {
+					pr, ok := lr.Properties[key]
+					if !ok {
+						errs = errs.AppendMsg("bus: node %q role %q field index %d invalid key %q", n.Name, r.Name, fi, key)
+						continue
+					}
+					// TODO(daniel.theophanes): validate node values.
+					if err := p.validValue(pr.Type, value); err != nil {
+						errs = errs.AppendMsg("bus: node %q role %q field index %d invalid value for type %q: %v", n.Name, r.Name, fi, key, err)
+						continue
+					}
+				}
+			}
 		}
 		// Verify Node has all Roles in Role Type.
 		for name := range ln.RoleTypes {
 			if _, ok := ln.Roles[name]; !ok {
 				errs = errs.AppendMsg("bus: node %q missing role %q as defined in role type %q", n.Name, name, n.Type)
+				continue
 			}
 		}
 	}
-	// TODO(daniel.theophanes): Loop through nodes again and verify bind names.
+	// Loop through nodes again and verify bind names.
+	for _, ln := range lb.Nodes {
+		for _, b := range ln.Binds {
+			if _, ok := lb.Nodes[b.Name]; !ok {
+				errs = errs.AppendMsg("bus: node %q bind alias %q invalid node name %q", ln.Node.Name, b.Alias, b.Name)
+				continue
+			}
+		}
+	}
 	return errs
 }
 func (p *program) loadBus(ctx context.Context, busPath string) (*Bus, error) {
@@ -221,6 +277,7 @@ func (p *program) loadBus(ctx context.Context, busPath string) (*Bus, error) {
 		bus := &Bus{}
 		coder := json.NewDecoder(f)
 		coder.DisallowUnknownFields()
+		coder.UseNumber()
 		err = coder.Decode(bus)
 		if err != nil {
 			return nil, fmt.Errorf("bus: unable to unmarshal %q: %v", busPath, err)
@@ -244,6 +301,7 @@ func (p *program) loadBus(ctx context.Context, busPath string) (*Bus, error) {
 		bus := &Bus{}
 		coder := json.NewDecoder(strings.NewReader(out))
 		coder.DisallowUnknownFields()
+		coder.UseNumber()
 		err = coder.Decode(bus)
 		if err != nil {
 			return nil, fmt.Errorf("bus: unable to unmarshal %q: %v", busPath, err)
