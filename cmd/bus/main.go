@@ -57,9 +57,9 @@ type program struct {
 // validate looks for the root definition, loads it,
 // then validates it for basic correctness.
 func (p *program) validate(ctx context.Context, busPath string) error {
-	bus, err := p.analysis.LoadBus(ctx, busPath)
+	b, err := bus.LoadBus(ctx, busPath)
 	if err != nil {
 		return err
 	}
-	return p.analysis.Validate(ctx, bus)
+	return p.analysis.Validate(ctx, b)
 }

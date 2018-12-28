@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -356,7 +357,7 @@ func (a *Analysis) Validate(ctx context.Context, bus *Bus) error {
 						errs = errs.AppendMsg("bus: node %q role %q field index %d invalid key %q", n.Name, r.Name, fi, key)
 						continue
 					}
-					// TODO(daniel.theophanes): validate node values.
+					// Validate node values.
 					if err := a.validValue(pr.Type, value); err != nil {
 						errs = errs.AppendMsg("bus: node %q role %q field index %d invalid value for type %q: %v", n.Name, r.Name, fi, key, err)
 						continue
@@ -372,9 +373,12 @@ func (a *Analysis) Validate(ctx context.Context, bus *Bus) error {
 			}
 		}
 	}
+	if errs == nil {
+		return nil
+	}
 	return errs
 }
-func (a *Analysis) LoadBus(ctx context.Context, busPath string) (*Bus, error) {
+func LoadBus(ctx context.Context, busPath string) (*Bus, error) {
 	ext := filepath.Ext(busPath)
 	switch ext {
 	default:
@@ -386,13 +390,9 @@ func (a *Analysis) LoadBus(ctx context.Context, busPath string) (*Bus, error) {
 		}
 		defer f.Close()
 
-		bus := &Bus{}
-		coder := json.NewDecoder(f)
-		coder.DisallowUnknownFields()
-		coder.UseNumber()
-		err = coder.Decode(bus)
+		bus, err := loadBusReader(ctx, f)
 		if err != nil {
-			return nil, fmt.Errorf("bus: unable to unmarshal %q: %v", busPath, err)
+			return nil, fmt.Errorf("bus: for %q %v", busPath, err)
 		}
 		return bus, nil
 	case ".jsonnet":
@@ -409,18 +409,31 @@ func (a *Analysis) LoadBus(ctx context.Context, busPath string) (*Bus, error) {
 		if err != nil {
 			return nil, fmt.Errorf("bus: %v", err)
 		}
-
-		bus := &Bus{}
-		coder := json.NewDecoder(strings.NewReader(out))
-		coder.DisallowUnknownFields()
-		coder.UseNumber()
-		err = coder.Decode(bus)
+		bus, err := loadBusReader(ctx, strings.NewReader(out))
 		if err != nil {
-			return nil, fmt.Errorf("bus: unable to unmarshal %q: %v", busPath, err)
+			return nil, fmt.Errorf("bus: for %q %v", busPath, err)
 		}
 		return bus, nil
 	}
 	return nil, fmt.Errorf("bus: unknown file extention %q", ext)
+}
+func LoadBusReader(ctx context.Context, r io.Reader) (*Bus, error) {
+	bus, err := loadBusReader(ctx, r)
+	if err != nil {
+		return nil, fmt.Errorf("bus: %v", err)
+	}
+	return bus, nil
+}
+func loadBusReader(ctx context.Context, r io.Reader) (*Bus, error) {
+	bus := &Bus{}
+	coder := json.NewDecoder(r)
+	coder.DisallowUnknownFields()
+	coder.UseNumber()
+	err := coder.Decode(bus)
+	if err != nil {
+		return nil, fmt.Errorf("unable to unmarshal: %v", err)
+	}
+	return bus, nil
 }
 
 type Node struct {
