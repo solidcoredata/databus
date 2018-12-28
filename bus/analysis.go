@@ -2,13 +2,19 @@ package bus
 
 import (
 	"context"
+	"encoding/base32"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
+	"github.com/cockroachdb/apd"
 	"github.com/google/go-jsonnet"
 )
 
@@ -76,25 +82,173 @@ type lookupBus struct {
 	Nodes map[string]lookupNode
 }
 
-type Analysis struct{}
+type Analysis struct {
+	lookupBus
+}
 
-// TODO(daniel.theophanes): determine valid types and values.
-// Need to ensure valid values can check valid node names.
-func (p *Analysis) validType(tp string) bool {
+// validType verifies the type names are valid.
+func (a *Analysis) validType(tp string) bool {
+	switch tp {
+	default:
+		return false
+	case "text":
+	case "int":
+	case "float":
+	case "decimal":
+	case "bytea":
+	case "node":
+	}
 	return true
 }
-func (p *Analysis) validValue(tp string, v interface{}) error {
-	return nil
+func (a *Analysis) validValue(tp string, v interface{}) error {
+	switch tp {
+	default:
+		return fmt.Errorf("unknown type %s", tp)
+	case "text":
+		_, ok := v.(string)
+		if !ok {
+			return fmt.Errorf("expected %[1]s got %[2]T (%[2]v)", tp, v)
+		}
+		return nil
+	case "int":
+		switch v := v.(type) {
+		default:
+			return fmt.Errorf("expected %[1]s got %[2]T (%[2]v)", tp, v)
+		case json.Number:
+			_, err := strconv.ParseInt(string(v), 10, 64)
+			if err != nil {
+				return fmt.Errorf("expected %[1]s got %[2]v: %v", tp, v, err)
+			}
+			return nil
+		case string:
+			_, err := strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return fmt.Errorf("expected %[1]s got %[2]v: %v", tp, v, err)
+			}
+			return nil
+		case int:
+			return nil
+		case int64:
+			return nil
+		case float32:
+			x := float64(v)
+			if math.Floor(x) != x {
+				return fmt.Errorf("an %s may not have a decimal part in %v", tp, v)
+			}
+			return nil
+		case float64:
+			if math.Floor(v) != v {
+				return fmt.Errorf("%s may not have a decimal part in %v", tp, v)
+			}
+			return nil
+		}
+	case "float":
+		switch v := v.(type) {
+		default:
+			return fmt.Errorf("expected %[1]s got %[2]T (%[2]v)", tp, v)
+		case json.Number:
+			_, err := strconv.ParseFloat(string(v), 64)
+			if err != nil {
+				return fmt.Errorf("expected %[1]s got %[2]v: %v", tp, v, err)
+			}
+			return nil
+		case string:
+			_, err := strconv.ParseFloat(v, 64)
+			if err != nil {
+				return fmt.Errorf("expected %[1]s got %[2]v: %v", tp, v, err)
+			}
+			return nil
+		case int:
+			f := float64(v)
+			i2 := int(f)
+			if v != i2 {
+				return fmt.Errorf("%s cannot represent %v", tp, v)
+			}
+			return nil
+		case int32:
+			f := float64(v)
+			i2 := int32(f)
+			if v != i2 {
+				return fmt.Errorf("%s cannot represent %v", tp, v)
+			}
+			return nil
+		case int64:
+			f := float64(v)
+			i2 := int64(f)
+			if v != i2 {
+				return fmt.Errorf("%s cannot represent %v", tp, v)
+			}
+			return nil
+		case float32:
+			return nil
+		case float64:
+			return nil
+		}
+	case "decimal":
+		switch v := v.(type) {
+		default:
+			return fmt.Errorf("expected %[1]s got %[2]T (%[2]v)", tp, v)
+		case string:
+			_, _, err := apd.NewFromString(v)
+			if err != nil {
+				return err
+			}
+			return nil
+		case json.Number:
+			_, _, err := apd.NewFromString(string(v))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+	case "bytea":
+		switch v := v.(type) {
+		default:
+			return fmt.Errorf("expected %[1]s got %[2]T (%[2]v)", tp, v)
+		case string:
+			if len(v) == 0 {
+				return nil
+			}
+			if len(v) < 3 {
+				return fmt.Errorf("missing prefix for %s, must be one of 16x, 32x, 64x", tp)
+			}
+			prefix := v[:3]
+			bytea := v[3:]
+			switch prefix {
+			default:
+				return fmt.Errorf("unknown prefix %q, must be one of 16x, 32x, 64x", prefix)
+			case "16x":
+				_, err := hex.DecodeString(bytea)
+				return err
+			case "32x":
+				_, err := base32.StdEncoding.DecodeString(bytea)
+				return err
+			case "64x":
+				_, err := base64.StdEncoding.DecodeString(bytea)
+				return err
+			}
+		}
+	case "node":
+		s, ok := v.(string)
+		if !ok {
+			return fmt.Errorf("%s must be a node name", tp)
+		}
+		if _, ok := a.Nodes[s]; !ok {
+			return fmt.Errorf("%s %s is not a valid node name", tp, v)
+		}
+		return nil
+	}
 }
 
 // validate looks for the root definition, loads it,
 // then validates it for basic correctness.
-func (p *Analysis) Validate(ctx context.Context, bus *Bus) error {
+func (a *Analysis) Validate(ctx context.Context, bus *Bus) error {
 	var errs *Errors
 	lb := lookupBus{
 		Types: make(map[string]lookupNodeType, len(bus.Types)),
 		Nodes: make(map[string]lookupNode, len(bus.Nodes)),
 	}
+	a.lookupBus = lb
 	for ni := range bus.Types {
 		nt := &bus.Types[ni]
 		lnt := lookupNodeType{
@@ -123,7 +277,7 @@ func (p *Analysis) Validate(ctx context.Context, bus *Bus) error {
 					errs = errs.AppendMsg("bus: node type %q role %q re-defines property %q", nt.Name, r.Name, pr.Name)
 					continue
 				}
-				if !p.validType(pr.Type) {
+				if !a.validType(pr.Type) {
 					errs = errs.AppendMsg("bus: node type %q role %q property %q, invalid type %q", nt.Name, r.Name, pr.Name, pr.Type)
 					continue
 				}
@@ -150,6 +304,12 @@ func (p *Analysis) Validate(ctx context.Context, bus *Bus) error {
 		}
 		// Create bind lookups.
 		lb.Nodes[n.Name] = ln
+	}
+
+	for ni := range bus.Nodes {
+		n := &bus.Nodes[ni]
+		ln := lb.Nodes[n.Name]
+
 		for bi := range n.Binds {
 			b := &n.Binds[bi]
 			if len(b.Alias) == 0 {
@@ -158,6 +318,10 @@ func (p *Analysis) Validate(ctx context.Context, bus *Bus) error {
 			}
 			if _, ok := ln.Binds[b.Alias]; ok {
 				errs = errs.AppendMsg("bus: node %q already bound alias %q", n.Name, b.Alias)
+				continue
+			}
+			if _, ok := lb.Nodes[b.Name]; !ok {
+				errs = errs.AppendMsg("bus: node %q bind alias %q invalid node name %q", ln.Node.Name, b.Alias, b.Name)
 				continue
 			}
 			ln.Binds[b.Alias] = b
@@ -193,7 +357,7 @@ func (p *Analysis) Validate(ctx context.Context, bus *Bus) error {
 						continue
 					}
 					// TODO(daniel.theophanes): validate node values.
-					if err := p.validValue(pr.Type, value); err != nil {
+					if err := a.validValue(pr.Type, value); err != nil {
 						errs = errs.AppendMsg("bus: node %q role %q field index %d invalid value for type %q: %v", n.Name, r.Name, fi, key, err)
 						continue
 					}
@@ -208,18 +372,9 @@ func (p *Analysis) Validate(ctx context.Context, bus *Bus) error {
 			}
 		}
 	}
-	// Loop through nodes again and verify bind names.
-	for _, ln := range lb.Nodes {
-		for _, b := range ln.Binds {
-			if _, ok := lb.Nodes[b.Name]; !ok {
-				errs = errs.AppendMsg("bus: node %q bind alias %q invalid node name %q", ln.Node.Name, b.Alias, b.Name)
-				continue
-			}
-		}
-	}
 	return errs
 }
-func (p *Analysis) LoadBus(ctx context.Context, busPath string) (*Bus, error) {
+func (a *Analysis) LoadBus(ctx context.Context, busPath string) (*Bus, error) {
 	ext := filepath.Ext(busPath)
 	switch ext {
 	default:
