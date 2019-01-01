@@ -11,25 +11,25 @@ import (
 )
 
 /*
-    There are three types of folder areas:
-     * Input to create a Bus.
-     * Bus output / current, versioned, and diff.
-     * Run output / current, alter.
+   There are three types of folder areas:
+    * Input to create a Bus.
+    * Bus output / current, versioned, and diff.
+    * Run output / current, alter.
 
-    Start with defining these folders.
-    Then only work on the "current" version (no alters, no versions).
+   Start with defining these folders.
+   Then only work on the "current" version (no alters, no versions).
 
-    For now, let's make the project structure ridgid, and
-    have defined areas for each input and output.
-    For testing and future options, make all output relative to a virtual
-    root in a virtual filesystem.
-    Each sub-system will write to a sub-vfs into a virual root folder.
+   For now, let's make the project structure ridgid, and
+   have defined areas for each input and output.
+   For testing and future options, make all output relative to a virtual
+   root in a virtual filesystem.
+   Each sub-system will write to a sub-vfs into a virual root folder.
 
-    /bus/input
-    /bus/output
-    /run
-        /runner-name.com/sql
-        /runner-name.com/ui
+   /bus/input
+   /bus/output
+   /run
+       /runner-name.com/sql
+       /runner-name.com/ui
 */
 func main() {
 	p := &program{

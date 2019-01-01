@@ -378,6 +378,7 @@ func (a *Analysis) Validate(ctx context.Context, bus *Bus) error {
 	}
 	return errs
 }
+
 func LoadBus(ctx context.Context, busPath string) (*Bus, error) {
 	ext := filepath.Ext(busPath)
 	switch ext {
