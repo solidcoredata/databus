@@ -63,7 +63,7 @@ type RunnerCall2Resp struct {
 	Errors      []string
 }
 
-type System interface {
+type System struct {
 	Input
 	Output
 	Runner
@@ -96,5 +96,5 @@ type Output interface {
 
 type Runner interface {
 	RunnerSetup(ctx context.Context) (RunnerSetup, error)
-	Run(ctx context.Context, setup RunnerSetup) error
+	Run(ctx context.Context, setup RunnerSetup, vdelta VersionDelta, currentBus *Bus, deltaBus interface{}) error
 }
