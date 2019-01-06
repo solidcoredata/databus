@@ -28,6 +28,13 @@ import (
    In both of these implementations, the runner should return a version number, to allow caching the
    first call. If there is a cached first call, then the second call may simply pass up the information
    along with the call version, and if the version is outdated, the first call may be called again and re-cached.
+
+    The sysfs version should use the following output directories:
+        /src (input)
+        /version (output)
+        /run (runner)
+            /runner-name.com/sql
+            /runner-name.com/ui
 */
 
 type RunnerSetup struct {

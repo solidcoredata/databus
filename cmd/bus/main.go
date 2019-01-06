@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"solidcoredata.org/src/databus/bus"
+	"solidcoredata.org/src/databus/bus/sysfs"
 
 	"github.com/kardianos/task"
 )
@@ -24,21 +25,16 @@ import (
    For testing and future options, make all output relative to a virtual
    root in a virtual filesystem.
    Each sub-system will write to a sub-vfs into a virual root folder.
-
-   /bus/input
-   /bus/output
-   /run
-       /runner-name.com/sql
-       /runner-name.com/ui
 */
 func main() {
 	p := &program{
 		analysis: &bus.Analysis{},
 	}
 
-	fBus := &task.Flag{Name: "bus", Type: task.FlagString, Default: "bus.jsonnet", Usage: "File name of the bus definition, may be json or jsonnet."}
+	fProject := &task.Flag{Name: "project", Type: task.FlagString, Default: "", Usage: "Project directory, if empty, uses current working directory."}
 
 	cmd := &task.Command{
+		Flags: []*task.Flag{fProject},
 		Usage: `Solid Core Data Bus
 
 The root of the data bus project is defined by a "X" file.
@@ -47,19 +43,22 @@ Tasks are run defined in "Y" file.`,
 			{
 				Name:  "validate",
 				Usage: "Validate the data bus.",
-				Flags: []*task.Flag{fBus},
 				Action: task.ActionFunc(func(ctx context.Context, st *task.State, sc task.Script) error {
-					busName := st.Default(fBus.Name, "").(string)
-					return p.validate(ctx, st.Filepath(busName))
+					project := st.Default(fProject.Name, "").(string)
+					return p.validate(ctx, st.Filepath(project))
 				}),
 			},
 			{
-				Name:  "checkpoint",
-				Usage: "Checkpoint the data bus as a new version.",
+				Name:  "diff",
+				Usage: "Show the current diff between the current src data bus and current bus.",
+			},
+			{
+				Name:  "commit",
+				Usage: "Commit the data bus as a new version.",
 			},
 			{
 				Name:  "run",
-				Usage: "Run the configured tasks on the data bus.",
+				Usage: "Run the configured tasks on the data bus. Defaults to running on the last commited bus.",
 			},
 		},
 	}
@@ -77,8 +76,13 @@ type program struct {
 
 // validate looks for the root definition, loads it,
 // then validates it for basic correctness.
-func (p *program) validate(ctx context.Context, busPath string) error {
-	b, err := bus.LoadBus(ctx, busPath)
+func (p *program) validate(ctx context.Context, projectPath string) error {
+	root, err := sysfs.RootFromWD(projectPath)
+	if err != nil {
+		return err
+	}
+	sys := sysfs.NewSystem(root)
+	b, err := sys.ReadBus(ctx, bus.InputOptions{})
 	if err != nil {
 		return err
 	}
