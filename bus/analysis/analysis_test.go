@@ -1,9 +1,11 @@
-package bus
+package analysis
 
 import (
 	"context"
 	"strings"
 	"testing"
+
+	"solidcoredata.org/src/databus/bus/load"
 
 	"github.com/google/go-jsonnet"
 )
@@ -60,7 +62,7 @@ func TestVerify(t *testing.T) {
     `
 
 	ctx := context.Background()
-	bus, err := LoadBusReader(ctx, strings.NewReader(throughJsonnet(t, input)))
+	bus, err := load.BusReader(ctx, strings.NewReader(throughJsonnet(t, input)))
 	if err != nil {
 		t.Fatal("load", err)
 	}

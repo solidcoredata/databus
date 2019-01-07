@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"solidcoredata.org/src/databus/bus"
+	"solidcoredata.org/src/databus/bus/analysis"
 	"solidcoredata.org/src/databus/bus/sysfs"
 
 	"github.com/kardianos/task"
@@ -28,7 +29,7 @@ import (
 */
 func main() {
 	p := &program{
-		analysis: &bus.Analysis{},
+		analysis: &analysis.Analysis{},
 	}
 
 	fProject := &task.Flag{Name: "project", Type: task.FlagString, Default: "", Usage: "Project directory, if empty, uses current working directory."}
@@ -71,7 +72,7 @@ Tasks are run defined in "Y" file.`,
 }
 
 type program struct {
-	analysis *bus.Analysis
+	analysis *analysis.Analysis
 }
 
 // validate looks for the root definition, loads it,
