@@ -83,7 +83,7 @@ func (p *program) validate(ctx context.Context, projectPath string) error {
 		return err
 	}
 	sys := sysfs.NewSystem(root)
-	b, err := sys.ReadBus(ctx, bus.InputOptions{})
+	b, err := sys.ReadBus(ctx, bus.InputOptions{Src: true})
 	if err != nil {
 		return err
 	}

@@ -77,8 +77,12 @@ type System struct {
 }
 
 type InputOptions struct {
+	// Read the bus from src.
+	Src bool
+
 	// Zero for "current" version, -1 from current version, any positive
 	// number for the exact version. Versions start at 1.
+	// Ignored if Src is true.
 	Version int64
 }
 
