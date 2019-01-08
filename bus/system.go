@@ -37,7 +37,7 @@ import (
             /runner-name.com/ui
 */
 
-type RunnerSetup struct {
+type Project struct {
 	// This could be a filesystem root or an HTTP root path.
 	Root     string
 	Enteries []RunnerEntry
@@ -48,6 +48,7 @@ type RunnerEntry struct {
 }
 
 type RunnerCall1Req struct {
+	Type    string // NodeTypes
 	Options map[string]string
 }
 type RunnerCall1Resp struct {
@@ -58,7 +59,10 @@ type RunnerCall1Resp struct {
 }
 
 type RunnerCall2Req struct {
+	Type string // Run
+
 	CallVersion int64
+	Root        string
 	Options     map[string]string
 
 	VersionDelta VersionDelta
@@ -98,6 +102,7 @@ type Version struct {
 type Input interface {
 	ReadBus(ctx context.Context, opts InputOptions) (*Bus, error)
 	ListVersion(ctx context.Context) ([]Version, error)
+	ReadProject(ctx context.Context) (Project, error)
 }
 
 type Output interface {
@@ -106,6 +111,5 @@ type Output interface {
 }
 
 type Runner interface {
-	RunnerSetup(ctx context.Context) (RunnerSetup, error)
-	Run(ctx context.Context, setup RunnerSetup, vdelta VersionDelta, currentBus *Bus, deltaBus interface{}) error
+	Run(ctx context.Context, project Project, vdelta VersionDelta, currentBus *Bus, deltaBus interface{}) error
 }

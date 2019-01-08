@@ -15,60 +15,73 @@ import (
 	"github.com/google/go-jsonnet"
 )
 
-func Bus(ctx context.Context, busPath string) (*bus.Bus, error) {
-	ext := filepath.Ext(busPath)
+func Decode(ctx context.Context, p string, v interface{}) error {
+	ext := filepath.Ext(p)
 	switch ext {
 	default:
-		return nil, fmt.Errorf("bus/load: unknown file ext %q", ext)
+		return fmt.Errorf("bus/load: unknown file ext %q", ext)
 	case ".json":
-		f, err := os.Open(busPath)
+		f, err := os.Open(p)
 		if err != nil {
-			return nil, fmt.Errorf("bus/load: unable to open file %q: %v", busPath, err)
+			return fmt.Errorf("bus/load: unable to open file %q: %v", p, err)
 		}
 		defer f.Close()
 
-		bus, err := loadBusReader(ctx, f)
+		err = decodeReader(ctx, f, v)
 		if err != nil {
-			return nil, fmt.Errorf("bus/load: for %q %v", busPath, err)
+			return fmt.Errorf("bus/load: for %q %v", p, err)
 		}
-		return bus, nil
+		return nil
 	case ".jsonnet":
 		vm := jsonnet.MakeVM()
-		dir, _ := filepath.Split(busPath)
+		dir, _ := filepath.Split(p)
 		vm.Importer(&jsonnet.FileImporter{
 			JPaths: []string{dir},
 		})
-		bb, err := ioutil.ReadFile(busPath)
+		bb, err := ioutil.ReadFile(p)
 		if err != nil {
-			return nil, fmt.Errorf("bus/load: unable to open file %q: %v", busPath, err)
+			return fmt.Errorf("bus/load: unable to open file %q: %v", p, err)
 		}
-		out, err := vm.EvaluateSnippet(busPath, string(bb))
+		out, err := vm.EvaluateSnippet(p, string(bb))
 		if err != nil {
-			return nil, fmt.Errorf("bus/load: %v", err)
+			return fmt.Errorf("bus/load: %v", err)
 		}
-		bus, err := loadBusReader(ctx, strings.NewReader(out))
+		err = decodeReader(ctx, strings.NewReader(out), v)
 		if err != nil {
-			return nil, fmt.Errorf("bus/load: for %q %v", busPath, err)
+			return fmt.Errorf("bus/load: for %q %v", p, err)
 		}
-		return bus, nil
+		return nil
 	}
-	return nil, fmt.Errorf("bus/load: unknown file extention %q", ext)
+	return fmt.Errorf("bus/load: unknown file extention %q", ext)
 }
-func BusReader(ctx context.Context, r io.Reader) (*bus.Bus, error) {
-	bus, err := loadBusReader(ctx, r)
+
+func DecodeReader(ctx context.Context, r io.Reader, v interface{}) error {
+	err := decodeReader(ctx, r, v)
 	if err != nil {
-		return nil, fmt.Errorf("bus/load: %v", err)
+		return fmt.Errorf("bus/load: %v", err)
 	}
-	return bus, nil
+	return nil
 }
-func loadBusReader(ctx context.Context, r io.Reader) (*bus.Bus, error) {
-	bus := &bus.Bus{}
+
+func decodeReader(ctx context.Context, r io.Reader, v interface{}) error {
 	coder := json.NewDecoder(r)
 	coder.DisallowUnknownFields()
 	coder.UseNumber()
-	err := coder.Decode(bus)
+	err := coder.Decode(v)
 	if err != nil {
-		return nil, fmt.Errorf("unable to unmarshal: %v", err)
+		return fmt.Errorf("unable to unmarshal: %v", err)
 	}
-	return bus, nil
+	return nil
+}
+
+func Bus(ctx context.Context, busPath string) (*bus.Bus, error) {
+	bus := &bus.Bus{}
+	err := Decode(ctx, busPath, bus)
+	return bus, err
+}
+
+func BusReader(ctx context.Context, r io.Reader) (*bus.Bus, error) {
+	bus := &bus.Bus{}
+	err := DecodeReader(ctx, r, bus)
+	return bus, err
 }

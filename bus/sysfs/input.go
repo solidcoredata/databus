@@ -100,3 +100,10 @@ func (i *input) ListVersion(ctx context.Context) ([]bus.Version, error) {
 	})
 	return vv, nil
 }
+
+func (i *input) ReadProject(ctx context.Context) (bus.Project, error) {
+	p := filepath.Join(i.root, configFilename)
+	proj := bus.Project{}
+	err := load.Decode(ctx, p, &proj)
+	return proj, err
+}
