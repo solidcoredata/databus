@@ -17,6 +17,7 @@ var _ bus.Input = &input{}
 const (
 	inputFilename   = "bus.jsonnet"
 	versionFilename = "bus.json"
+	deltaFilename   = "delta.json"
 	inputDir        = "src"
 	versionDir      = "version"
 )

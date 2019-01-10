@@ -9,14 +9,6 @@ import (
 	"solidcoredata.org/src/databus/bus"
 )
 
-/*
-   /src (input)
-   /version (output)
-   /run (runner)
-       /runner-name.com/sql
-       /runner-name.com/ui
-*/
-
 // NewSystem creates new FS components from the givent fs root directory.
 // The root directory can be obtained from RootFromWD.
 func NewSystem(root string) bus.System {

@@ -43,33 +43,34 @@ type Project struct {
 	Enteries []RunnerEntry
 }
 type RunnerEntry struct {
+	Name    string
 	Call    string
 	Options map[string]string
 }
 
-type RunnerCall1Req struct {
+type CallNodeTypesRequest struct {
 	Type    string // NodeTypes
 	Options map[string]string
 }
-type RunnerCall1Resp struct {
-	CallVersion int64
-	Errors      []string
+type CallNodeTypesResponse struct {
+	Errors []string
 
-	NodeTypes []string
+	CallVersion int64
+	NodeTypes   []string
 }
 
-type RunnerCall2Req struct {
-	Type string // Run
+type CallRunRequest struct {
+	Type    string // Run
+	Options map[string]string
 
 	CallVersion int64
 	Root        string
-	Options     map[string]string
 
 	VersionDelta VersionDelta
 	Bus          *Bus
 	DeltaBus     interface{}
 }
-type RunnerCall2Resp struct {
+type CallRunResponse struct {
 	CallVersion int64
 	Errors      []string
 }
@@ -95,6 +96,10 @@ type VersionDelta struct {
 	Current  Version
 }
 
+type DeltaBus struct {
+	_ struct{}
+}
+
 type Version struct {
 	Version int64
 }
@@ -107,9 +112,9 @@ type Input interface {
 
 type Output interface {
 	WriteBus(ctx context.Context, ver Version, currentBus *Bus) error
-	WriteDelta(ctx context.Context, vdelta VersionDelta, deltaBus interface{}) error
+	WriteDelta(ctx context.Context, vdelta VersionDelta, deltaBus DeltaBus) error
 }
 
 type Runner interface {
-	Run(ctx context.Context, project Project, vdelta VersionDelta, currentBus *Bus, deltaBus interface{}) error
+	Run(ctx context.Context, project Project, vdelta VersionDelta, currentBus *Bus, deltaBus DeltaBus) error
 }
