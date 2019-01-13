@@ -40,6 +40,8 @@ type lookupBus struct {
 
 type Analysis struct {
 	lookupBus
+
+	validated bool
 }
 
 // validType verifies the type names are valid.
@@ -196,9 +198,17 @@ func (a *Analysis) validValue(tp string, v interface{}) error {
 	}
 }
 
+// New creates a new analysis validates a Bus
+// to get it ready for further analysis.
+//
 // validate looks for the root definition, loads it,
 // then validates it for basic correctness.
-func (a *Analysis) Validate(ctx context.Context, b *bus.Bus) error {
+func New(ctx context.Context, b *bus.Bus) (*Analysis, error) {
+	// TODO(daniel.theophanes): Also ensure NamePrev (Node|Field) do not conflict with any current names.
+	// This is to ensure systems can use this information to still service -1 version clients and not conflict right away.
+	// It forces designers to take a two part change to many renames.
+
+	a := &Analysis{}
 	var errs *bus.Errors
 	lb := lookupBus{
 		Types: make(map[string]lookupNodeType, len(b.Types)),
@@ -329,7 +339,12 @@ func (a *Analysis) Validate(ctx context.Context, b *bus.Bus) error {
 		}
 	}
 	if errs == nil {
-		return nil
+		a.validated = true
+		return a, nil
 	}
-	return errs
+	return nil, errs
+}
+
+func NewDelta(a1, a2 *Analysis) (*bus.DeltaBus, error) {
+	panic("todo")
 }

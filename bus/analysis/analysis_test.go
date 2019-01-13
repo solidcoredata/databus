@@ -66,8 +66,7 @@ func TestVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal("load", err)
 	}
-	a := &Analysis{}
-	err = a.Validate(ctx, bus)
+	_, err = New(ctx, bus)
 	if err != nil {
 		t.Fatal("validate", err)
 	}

@@ -28,9 +28,7 @@ import (
    Each sub-system will write to a sub-vfs into a virual root folder.
 */
 func main() {
-	p := &program{
-		analysis: &analysis.Analysis{},
-	}
+	p := &program{}
 
 	fProject := &task.Flag{Name: "project", Type: task.FlagString, Default: "", Usage: "Project directory, if empty, uses current working directory."}
 
@@ -87,5 +85,11 @@ func (p *program) validate(ctx context.Context, projectPath string) error {
 	if err != nil {
 		return err
 	}
-	return p.analysis.Validate(ctx, b)
+
+	a, err := analysis.New(ctx, b)
+	if err != nil {
+		return err
+	}
+	p.analysis = a
+	return nil
 }

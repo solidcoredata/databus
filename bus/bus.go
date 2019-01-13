@@ -1,10 +1,11 @@
 package bus
 
 type Node struct {
-	Name  string
-	Type  string
-	Roles []Role
-	Binds []Bind
+	Name     string // Name of the node.
+	NamePrev string // Previous name of the node. Useful for renames.
+	Type     string
+	Roles    []Role
+	Binds    []Bind
 }
 type Bind struct {
 	Alias string
@@ -40,6 +41,9 @@ type Role struct {
 }
 type KV = map[string]interface{}
 type Field struct {
+	Name     string // Name of the field.
+	NamePrev string // Previous name of the field, useful during renames.
+
 	// Bound Alias name.
 	Alias string
 	KV    KV
