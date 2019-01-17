@@ -32,6 +32,7 @@ type lookupNode struct {
 	Node  *bus.Node
 	Roles map[string]lookupRole
 	Binds map[string]*bus.Bind // Key is alias.
+	Prev  bool
 }
 type lookupBus struct {
 	Types map[string]lookupNodeType
@@ -39,6 +40,7 @@ type lookupBus struct {
 }
 
 type Analysis struct {
+	version bus.Version
 	lookupBus
 
 	validated bool
@@ -208,7 +210,9 @@ func New(ctx context.Context, b *bus.Bus) (*Analysis, error) {
 	// This is to ensure systems can use this information to still service -1 version clients and not conflict right away.
 	// It forces designers to take a two part change to many renames.
 
-	a := &Analysis{}
+	a := &Analysis{
+		version: b.Version,
+	}
 	var errs *bus.Errors
 	lb := lookupBus{
 		Types: make(map[string]lookupNodeType, len(b.Types)),
@@ -270,6 +274,17 @@ func New(ctx context.Context, b *bus.Bus) (*Analysis, error) {
 		}
 		// Create bind lookups.
 		lb.Nodes[n.Name] = ln
+
+		if len(n.NamePrev) > 0 && n.NamePrev != n.Name {
+			ln.Prev = true
+
+			if _, ok := lb.Nodes[n.NamePrev]; ok {
+				errs = errs.AppendMsg("bus/anlysis: node %q already defined (prev)", n.NamePrev)
+				continue
+			}
+			// Create bind lookups.
+			lb.Nodes[n.NamePrev] = ln
+		}
 	}
 
 	for ni := range b.Nodes {
@@ -345,6 +360,10 @@ func New(ctx context.Context, b *bus.Bus) (*Analysis, error) {
 	return nil, errs
 }
 
-func NewDelta(a1, a2 *Analysis) (*bus.DeltaBus, error) {
-	panic("todo")
+func NewDelta(current, previous *Analysis) (*bus.DeltaBus, error) {
+	delta := &bus.DeltaBus{
+		Current:  current.version,
+		Previous: previous.version,
+	}
+	return delta, nil
 }

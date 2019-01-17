@@ -36,6 +36,7 @@ func NewInput(root string) bus.Input {
 // the version directory.
 func (i *input) ReadBus(ctx context.Context, opts bus.InputOptions) (*bus.Bus, error) {
 	p := ""
+	v := bus.Version{}
 	switch {
 	case opts.Src:
 		p = filepath.Join(i.root, inputDir, inputFilename)
@@ -47,7 +48,7 @@ func (i *input) ReadBus(ctx context.Context, opts bus.InputOptions) (*bus.Bus, e
 		if len(list) == 0 {
 			return nil, fmt.Errorf("bus/sysfs: cannot read current version, no current version exists")
 		}
-		v := list[len(list)-1]
+		v = list[len(list)-1]
 		p = filepath.Join(i.root, versionDir, strconv.FormatInt(v.Version, 10), versionFilename)
 	case opts.Version < 0:
 		list, err := i.ListVersion(ctx)
@@ -58,14 +59,20 @@ func (i *input) ReadBus(ctx context.Context, opts bus.InputOptions) (*bus.Bus, e
 		if int64(len(list)) < nFromCurrent+1 {
 			return nil, fmt.Errorf("bus/sysfs: cannot read %d version, requested version does not exists", opts.Version)
 		}
-		v := list[int64(len(list))-1-nFromCurrent]
+		v = list[int64(len(list))-1-nFromCurrent]
 		p = filepath.Join(i.root, versionDir, strconv.FormatInt(v.Version, 10), versionFilename)
 	case opts.Version > 0:
+		v.Version = opts.Version
 		p = filepath.Join(i.root, versionDir, strconv.FormatInt(opts.Version, 10), versionFilename)
 	default:
 		panic("can't happen")
 	}
-	return load.Bus(ctx, p)
+	bus, err := load.Bus(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	bus.Version = v
+	return bus, nil
 }
 func (i *input) ListVersion(ctx context.Context) ([]bus.Version, error) {
 	vdir := filepath.Join(i.root, versionDir)

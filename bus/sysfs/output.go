@@ -23,8 +23,8 @@ type output struct {
 }
 
 // WriteBus writes the bus into the version folder.
-func (o *output) WriteBus(ctx context.Context, ver bus.Version, currentBus *bus.Bus) error {
-	vdir := filepath.Join(o.root, versionDir, strconv.FormatInt(ver.Version, 10))
+func (o *output) WriteBus(ctx context.Context, currentBus *bus.Bus) error {
+	vdir := filepath.Join(o.root, versionDir, strconv.FormatInt(currentBus.Version.Version, 10))
 	if err := os.MkdirAll(vdir, 0700); err != nil {
 		return err
 	}
@@ -41,8 +41,8 @@ func (o *output) WriteBus(ctx context.Context, ver bus.Version, currentBus *bus.
 }
 
 // WriteDelta writes the delta into the current version.
-func (o *output) WriteDelta(ctx context.Context, vdelta bus.VersionDelta, deltaBus bus.DeltaBus) error {
-	vdir := filepath.Join(o.root, versionDir, strconv.FormatInt(vdelta.Current.Version, 10))
+func (o *output) WriteDelta(ctx context.Context, deltaBus *bus.DeltaBus) error {
+	vdir := filepath.Join(o.root, versionDir, strconv.FormatInt(deltaBus.Current.Version, 10))
 	if err := os.MkdirAll(vdir, 0700); err != nil {
 		return err
 	}

@@ -41,6 +41,11 @@ type Role struct {
 }
 type KV = map[string]interface{}
 type Field struct {
+	// TODO(daniel.theophanes): I'm unsure if Field should have Name and NamePrev.
+	// It also calls into question if we should even try to compute the delta
+	// here. Maybe the role of this should just provide the current and
+	// previous bus deinitions and leave it to each runner to do a diff
+	// if they need it. Really, that is where I should start at least.
 	Name     string // Name of the field.
 	NamePrev string // Previous name of the field, useful during renames.
 
@@ -48,7 +53,15 @@ type Field struct {
 	Alias string
 	KV    KV
 }
+
+type Version struct {
+	Version int64
+}
+
 type Bus struct {
+	// Version is only set on checkpoint.
+	Version Version
+
 	Nodes []Node
 	Types []NodeType
 }

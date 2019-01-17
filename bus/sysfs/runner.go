@@ -36,7 +36,7 @@ func (s stdbuf) Reset() {
 	s.serr.Reset()
 }
 
-func (r *runner) Run(ctx context.Context, setup bus.Project, vdelta bus.VersionDelta, currentBus *bus.Bus, deltaBus bus.DeltaBus) error {
+func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus, previousBus *bus.Bus, deltaBus *bus.DeltaBus) error {
 	wd := setup.Root
 	var errs *bus.Errors
 	if len(wd) == 0 {
@@ -84,9 +84,9 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, vdelta bus.VersionD
 			CallVersion: ntResp.CallVersion,
 			Root:        wd,
 
-			VersionDelta: vdelta,
-			Bus:          currentBus,
-			DeltaBus:     deltaBus,
+			Current:  currentBus,
+			Previous: previousBus,
+			DeltaBus: deltaBus,
 		}
 		runResp := &bus.CallRunResponse{}
 		err = r.runExec(ctx, s, e.Call, runReq, runResp)

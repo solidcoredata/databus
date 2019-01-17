@@ -66,9 +66,9 @@ type CallRunRequest struct {
 	CallVersion int64
 	Root        string
 
-	VersionDelta VersionDelta
-	Bus          *Bus
-	DeltaBus     interface{}
+	Current  *Bus
+	Previous *Bus
+	DeltaBus *DeltaBus
 }
 type CallRunResponse struct {
 	CallVersion int64
@@ -91,11 +91,6 @@ type InputOptions struct {
 	Version int64
 }
 
-type VersionDelta struct {
-	Previous Version
-	Current  Version
-}
-
 // DeltaBus needs to handle the following changes:
 //  * New Node
 //  * Remove Node
@@ -106,8 +101,10 @@ type VersionDelta struct {
 //    - Update Role Field
 //    - Rename Role Field
 type DeltaBus struct {
-	Nodes  []DeltaNode
-	Fields []DeltaField
+	Current  Version
+	Previous Version
+	Nodes    []DeltaNode
+	Fields   []DeltaField
 }
 
 type Alter int32
@@ -133,10 +130,6 @@ type DeltaField struct {
 	Field string
 }
 
-type Version struct {
-	Version int64
-}
-
 type Input interface {
 	ReadBus(ctx context.Context, opts InputOptions) (*Bus, error)
 	ListVersion(ctx context.Context) ([]Version, error)
@@ -144,10 +137,10 @@ type Input interface {
 }
 
 type Output interface {
-	WriteBus(ctx context.Context, ver Version, currentBus *Bus) error
-	WriteDelta(ctx context.Context, vdelta VersionDelta, deltaBus DeltaBus) error
+	WriteBus(ctx context.Context, currentBus *Bus) error
+	WriteDelta(ctx context.Context, deltaBus *DeltaBus) error
 }
 
 type Runner interface {
-	Run(ctx context.Context, project Project, vdelta VersionDelta, currentBus *Bus, deltaBus DeltaBus) error
+	Run(ctx context.Context, project Project, currentBus *Bus, previousBus *Bus, deltaBus *DeltaBus) error
 }
