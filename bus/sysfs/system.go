@@ -20,10 +20,6 @@ func NewSystem(root string) bus.System {
 	return sys
 }
 
-const (
-	configFilename = "scd.jsonnet"
-)
-
 // RootFromWD starts in the current working directory and looks for the root
 // of the bus directory. If not found it returns an error.
 // If projectRoot is empty, the current working directory is used as the start.
@@ -40,7 +36,7 @@ func RootFromWD(projectRoot string) (string, error) {
 		if len(current) == 0 {
 			break
 		}
-		try := filepath.Join(current, configFilename)
+		try := filepath.Join(current, ConfigFilename)
 		_, err := os.Stat(try)
 		if err == nil {
 			return current, nil

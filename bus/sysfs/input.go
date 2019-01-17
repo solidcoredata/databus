@@ -15,10 +15,12 @@ import (
 var _ bus.Input = &input{}
 
 const (
-	inputFilename   = "bus.jsonnet"
+	InputFilename  = "bus.jsonnet"
+	ConfigFilename = "scd.jsonnet"
+	InputDir       = "src"
+
 	versionFilename = "bus.json"
 	deltaFilename   = "delta.json"
-	inputDir        = "src"
 	versionDir      = "version"
 )
 
@@ -39,7 +41,7 @@ func (i *input) ReadBus(ctx context.Context, opts bus.InputOptions) (*bus.Bus, e
 	v := bus.Version{}
 	switch {
 	case opts.Src:
-		p = filepath.Join(i.root, inputDir, inputFilename)
+		p = filepath.Join(i.root, InputDir, InputFilename)
 	case opts.Version == 0:
 		list, err := i.ListVersion(ctx)
 		if err != nil {
@@ -110,7 +112,7 @@ func (i *input) ListVersion(ctx context.Context) ([]bus.Version, error) {
 }
 
 func (i *input) ReadProject(ctx context.Context) (bus.Project, error) {
-	p := filepath.Join(i.root, configFilename)
+	p := filepath.Join(i.root, ConfigFilename)
 	proj := bus.Project{}
 	err := load.Decode(ctx, p, &proj)
 	return proj, err

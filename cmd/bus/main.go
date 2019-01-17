@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 
 	"solidcoredata.org/src/databus/bus"
 	"solidcoredata.org/src/databus/bus/analysis"
@@ -39,8 +40,10 @@ func main() {
 		Flags: []*task.Flag{fProject},
 		Usage: `Solid Core Data Bus
 
-The root of the data bus project is defined by a "X" file.
-Tasks are run defined in "Y" file.`,
+The root of the data bus project is defined by a "` + sysfs.ConfigFilename + `" file.
+Tasks set to run are defined in this file as well.
+The source for the current input bus should live under "` + filepath.Join(sysfs.InputDir, sysfs.InputFilename) + `".
+`,
 		Commands: []*task.Command{
 			{
 				Name:  "validate",
