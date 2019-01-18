@@ -7,10 +7,12 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"solidcoredata.org/src/databus/bus"
 	"solidcoredata.org/src/databus/bus/analysis"
 	"solidcoredata.org/src/databus/bus/sysfs"
+	"solidcoredata.org/src/databus/internal/start"
 
 	"github.com/kardianos/task"
 )
@@ -84,8 +86,10 @@ The source for the current input bus should live under "` + filepath.Join(sysfs.
 		},
 	}
 
-	st := task.DefaultState()
-	err := cmd.Exec(os.Args[1:]).Run(context.Background(), st, nil)
+	err := start.Start(context.Background(), time.Second*2, func(ctx context.Context) error {
+		st := task.DefaultState()
+		return cmd.Exec(os.Args[1:]).Run(context.Background(), st, nil)
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

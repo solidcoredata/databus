@@ -48,10 +48,12 @@ type RunnerEntry struct {
 	Options map[string]string
 }
 
-type CallNodeTypesRequest struct {
-	Type    string // NodeTypes
+type CallHeader struct {
+	Type    string // NodeTypes | Run
 	Options map[string]string
 }
+
+type CallNodeTypesRequest struct{}
 type CallNodeTypesResponse struct {
 	Errors []string
 
@@ -60,9 +62,6 @@ type CallNodeTypesResponse struct {
 }
 
 type CallRunRequest struct {
-	Type    string // Run
-	Options map[string]string
-
 	CallVersion int64
 	Root        string
 

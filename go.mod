@@ -17,7 +17,7 @@ require (
 	github.com/rjeczalik/notify v0.9.2 // indirect
 	golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9 // indirect
 	golang.org/x/net v0.0.0-20181207154023-610586996380 // indirect
-	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
+	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6 // indirect
 	mvdan.cc/sh v2.6.2+incompatible // indirect
 )

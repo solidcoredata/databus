@@ -51,12 +51,13 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 
 	for _, e := range setup.Enteries {
 		// Assume Call path is an exec, not an http call. Call exec.
-		ntReq := &bus.CallNodeTypesRequest{
+		header := &bus.CallHeader{
 			Type:    "NodeTypes",
 			Options: e.Options,
 		}
+		ntReq := &bus.CallNodeTypesRequest{}
 		ntResp := &bus.CallNodeTypesResponse{}
-		err := r.runExec(ctx, s, e.Call, ntReq, ntResp)
+		err := r.runExec(ctx, s, e.Call, header, ntReq, ntResp)
 		if err != nil {
 			errs = errs.Append(err)
 			continue
@@ -76,11 +77,9 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 			errs = errs.AppendMsg("%s: invalid node types response, must require at least one node type", e.Name)
 			continue
 		}
+		header.Type = "Run"
 		// TODO(daniel.theophanes): Filter bus nodes in bus and delta to only include requested node types.
 		runReq := &bus.CallRunRequest{
-			Type:    "Run",
-			Options: e.Options,
-
 			CallVersion: ntResp.CallVersion,
 			Root:        wd,
 
@@ -89,7 +88,7 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 			DeltaBus: deltaBus,
 		}
 		runResp := &bus.CallRunResponse{}
-		err = r.runExec(ctx, s, e.Call, runReq, runResp)
+		err = r.runExec(ctx, s, e.Call, header, runReq, runResp)
 		if err != nil {
 			errs = errs.Append(err)
 			continue
@@ -112,11 +111,15 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 	return nil
 }
 
-func (r *runner) runExec(ctx context.Context, s stdbuf, call string, inObj, outObj interface{}) error {
+func (r *runner) runExec(ctx context.Context, s stdbuf, call string, inheader, inObj, outObj interface{}) error {
 	s.Reset()
 	encode := json.NewEncoder(s.sin)
 	encode.SetEscapeHTML(false)
-	err := encode.Encode(inObj)
+	err := encode.Encode(inheader)
+	if err != nil {
+		return err
+	}
+	err = encode.Encode(inObj)
 	if err != nil {
 		return err
 	}
