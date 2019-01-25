@@ -47,5 +47,5 @@ func runcmd(t *testing.T, subdir []string, args []string) {
 }
 
 func TestSQL(t *testing.T) {
-	runcmd(t, []string{"validate"}, []string{"validate"})
+	runcmd(t, []string{"library"}, []string{"validate"})
 }

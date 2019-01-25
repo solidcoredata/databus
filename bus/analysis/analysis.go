@@ -54,6 +54,7 @@ func (a *Analysis) validType(tp string) bool {
 	case "text":
 	case "int":
 	case "float":
+	case "bool":
 	case "decimal":
 	case "bytea":
 	case "node":
@@ -142,6 +143,25 @@ func (a *Analysis) validValue(tp string, v interface{}) error {
 		case float32:
 			return nil
 		case float64:
+			return nil
+		}
+	case "bool":
+		switch v := v.(type) {
+		default:
+			return fmt.Errorf("expected %[1]s got %[2]T (%[2]v)", tp, v)
+		case string:
+			_, err := strconv.ParseBool(v)
+			if err != nil {
+				return err
+			}
+			return nil
+		case json.Number:
+			_, err := strconv.ParseBool(string(v))
+			if err != nil {
+				return err
+			}
+			return nil
+		case bool:
 			return nil
 		}
 	case "decimal":

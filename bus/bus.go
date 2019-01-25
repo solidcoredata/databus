@@ -27,11 +27,14 @@ type Property struct {
 	Name     string
 	Type     string
 	Optional bool
-	Send     bool
+	Send     bool // Set the value in other connected nodes that have Recv == true.
 	Recv     bool
+	Default  string
 }
 type RoleType struct {
-	Name       string
+	Name string
+	// TODO(daniel.theophanes): Add FieldCount (One | ZeroPlus | OnePlus).
+	// DB table would be OnePlus, property row would be One, optional list would be ZeroPlus.
 	Properties []Property
 }
 type Role struct {
@@ -41,13 +44,9 @@ type Role struct {
 }
 type KV = map[string]interface{}
 type Field struct {
-	// TODO(daniel.theophanes): I'm unsure if Field should have Name and NamePrev.
-	// It also calls into question if we should even try to compute the delta
-	// here. Maybe the role of this should just provide the current and
-	// previous bus deinitions and leave it to each runner to do a diff
-	// if they need it. Really, that is where I should start at least.
-	Name     string // Name of the field.
-	NamePrev string // Previous name of the field, useful during renames.
+	// The field ID only needs to be set to a non-zero value before attempting to rename a stateful field.
+	// Once set, it should not be changed. ID value should not imply order.
+	ID int64
 
 	// Bound Alias name.
 	Alias string
