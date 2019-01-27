@@ -8,8 +8,13 @@ import (
 	"testing"
 
 	"github.com/kardianos/task"
+	"solidcoredata.org/src/databus/bus/sysfs"
 	"solidcoredata.org/src/databus/internal/tool"
 )
+
+func init() {
+	sysfs.RegisterMemoryRunner("memory:///tool/sql", &tool.SQLGenerate{})
+}
 
 func testdata() string {
 	_, fullTestFile, _, _ := runtime.Caller(0)
@@ -47,5 +52,5 @@ func runcmd(t *testing.T, subdir []string, args []string) {
 }
 
 func TestSQL(t *testing.T) {
-	runcmd(t, []string{"library"}, []string{"validate"})
+	runcmd(t, []string{"library"}, []string{"run", "-src"})
 }

@@ -10,12 +10,7 @@ import (
 	"solidcoredata.org/src/databus/bus"
 )
 
-type RunStart interface {
-	NodeTypes(ctx context.Context, header *bus.CallHeader, request *bus.CallNodeTypesRequest) (*bus.CallNodeTypesResponse, error)
-	Run(ctx context.Context, header *bus.CallHeader, request *bus.CallRunRequest) (*bus.CallRunResponse, error)
-}
-
-func Run(ctx context.Context, rs RunStart) error {
+func Run(ctx context.Context, rs bus.RunStart) error {
 	return Start(ctx, time.Second*1, func(ctx context.Context) error {
 		decode := json.NewDecoder(os.Stdin)
 		decode.DisallowUnknownFields()

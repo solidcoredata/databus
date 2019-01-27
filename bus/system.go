@@ -74,6 +74,11 @@ type CallRunResponse struct {
 	Errors      []string
 }
 
+type RunStart interface {
+	NodeTypes(ctx context.Context, header *CallHeader, request *CallNodeTypesRequest) (*CallNodeTypesResponse, error)
+	Run(ctx context.Context, header *CallHeader, request *CallRunRequest) (*CallRunResponse, error)
+}
+
 type System struct {
 	Input
 	Output

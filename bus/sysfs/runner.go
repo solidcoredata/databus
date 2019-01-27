@@ -7,9 +7,20 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"solidcoredata.org/src/databus/bus"
 )
+
+var memoryReg = map[string]bus.RunStart{}
+
+func RegisterMemoryRunner(name string, r bus.RunStart) {
+	_, exist := memoryReg[name]
+	if exist {
+		panic(fmt.Errorf("run start %q already exists in registry", name))
+	}
+	memoryReg[name] = r
+}
 
 var _ bus.Runner = &runner{}
 
@@ -36,6 +47,11 @@ func (s stdbuf) Reset() {
 	s.serr.Reset()
 }
 
+const (
+	headerNodeTypes = "NodeTypes"
+	headerRun       = "Run"
+)
+
 func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus, previousBus *bus.Bus, deltaBus *bus.DeltaBus) error {
 	wd := setup.Root
 	var errs *bus.Errors
@@ -52,7 +68,7 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 	for _, e := range setup.Enteries {
 		// Assume Call path is an exec, not an http call. Call exec.
 		header := &bus.CallHeader{
-			Type:    "NodeTypes",
+			Type:    headerNodeTypes,
 			Options: e.Options,
 		}
 		ntReq := &bus.CallNodeTypesRequest{}
@@ -77,7 +93,7 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 			errs = errs.AppendMsg("%s: invalid node types response, must require at least one node type", e.Name)
 			continue
 		}
-		header.Type = "Run"
+		header.Type = headerRun
 		// TODO(daniel.theophanes): Filter bus nodes in bus and delta to only include requested node types.
 		runReq := &bus.CallRunRequest{
 			CallVersion: ntResp.CallVersion,
@@ -111,7 +127,34 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 	return nil
 }
 
-func (r *runner) runExec(ctx context.Context, s stdbuf, call string, inheader, inObj, outObj interface{}) error {
+func (r *runner) runExec(ctx context.Context, s stdbuf, call string, inheader *bus.CallHeader, inObj, outObj interface{}) error {
+	if strings.HasPrefix(call, "memory://") {
+		rs, ok := memoryReg[call]
+		if !ok {
+			return fmt.Errorf("call %q not found in registry", call)
+		}
+		switch inheader.Type {
+		default:
+			return fmt.Errorf("unknown header type: %s", inheader.Type)
+		case headerNodeTypes:
+			in := inObj.(*bus.CallNodeTypesRequest)
+			out := outObj.(*bus.CallNodeTypesResponse)
+			resp, err := rs.NodeTypes(ctx, inheader, in)
+			if err != nil {
+				return err
+			}
+			*out = *resp
+		case headerRun:
+			in := inObj.(*bus.CallRunRequest)
+			out := outObj.(*bus.CallRunResponse)
+			resp, err := rs.Run(ctx, inheader, in)
+			if err != nil {
+				return err
+			}
+			*out = *resp
+		}
+		return nil
+	}
 	s.Reset()
 	encode := json.NewEncoder(s.sin)
 	encode.SetEscapeHTML(false)

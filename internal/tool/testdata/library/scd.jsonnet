@@ -1,8 +1,10 @@
 {
     Root: "",
     Enteries: [
-        Name: "",
-        Call: "",
-        Options: {},
+        {
+            Name: "SQL Gen",
+            Call: "memory:///tool/sql",
+            Options: {},
+        },
     ],
 }
