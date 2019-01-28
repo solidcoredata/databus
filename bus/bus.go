@@ -64,3 +64,30 @@ type Bus struct {
 	Nodes []Node
 	Types []NodeType
 }
+
+// Filter bus by node types.
+func (b *Bus) Filter(types []string) *Bus {
+	tlookup := make(map[string]bool, len(types))
+	for _, t := range types {
+		tlookup[t] = true
+	}
+
+	f := &Bus{
+		Version: b.Version,
+		Nodes:   make([]Node, 0, len(b.Nodes)),
+		Types:   make([]NodeType, 0, len(types)),
+	}
+	for _, n := range b.Nodes {
+		if !tlookup[n.Type] {
+			continue
+		}
+		f.Nodes = append(f.Nodes, n)
+	}
+	for _, t := range b.Types {
+		if !tlookup[t.Name] {
+			continue
+		}
+		f.Types = append(f.Types, t)
+	}
+	return f
+}

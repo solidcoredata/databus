@@ -111,6 +111,11 @@ type DeltaBus struct {
 	Fields   []DeltaField
 }
 
+func (d *DeltaBus) Filter(types []string) *DeltaBus {
+	// TODO(daniel.theophanes): Filter deltabus by node types.
+	return d
+}
+
 type Alter int32
 
 const (

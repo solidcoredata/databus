@@ -94,14 +94,13 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 			continue
 		}
 		header.Type = headerRun
-		// TODO(daniel.theophanes): Filter bus nodes in bus and delta to only include requested node types.
 		runReq := &bus.CallRunRequest{
 			CallVersion: ntResp.CallVersion,
 			Root:        wd,
 
-			Current:  currentBus,
-			Previous: previousBus,
-			DeltaBus: deltaBus,
+			Current:  currentBus.Filter(ntResp.NodeTypes),
+			Previous: previousBus.Filter(ntResp.NodeTypes),
+			DeltaBus: deltaBus.Filter(ntResp.NodeTypes),
 		}
 		runResp := &bus.CallRunResponse{}
 		err = r.runExec(ctx, s, e.Call, header, runReq, runResp)
