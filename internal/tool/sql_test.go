@@ -3,6 +3,8 @@ package tool_test
 import (
 	"bytes"
 	"context"
+	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -13,7 +15,8 @@ import (
 )
 
 func init() {
-	sysfs.RegisterMemoryRunner("memory:///tool/sql", &tool.SQLGenerate{})
+	sysfs.RegisterMemoryRunner("memory://run/tool/sql", &tool.SQLGenerate{})
+	tool.RegisterOutputHandler("memory://verify/output", verifyOutput)
 }
 
 func testdata() string {
@@ -22,14 +25,41 @@ func testdata() string {
 	return filepath.Join(dir, "testdata")
 }
 
+func verifyOutput(ctx context.Context, filename string, content []byte) error {
+	p := filepath.Join(dirFromContext(ctx), "output", filename)
+	// Read file at p.
+	// Compare to content.
+	golden, err := ioutil.ReadFile(p)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(golden, content) {
+		return fmt.Errorf("%s does not match:\n%s", filename, content)
+	}
+	return nil
+}
+
+type ctxKeyDir struct{}
+
+func dirFromContext(ctx context.Context) string {
+	return ctx.Value(ctxKeyDir{}).(string)
+}
+func dirWithContext(ctx context.Context, dir string) context.Context {
+	return context.WithValue(ctx, ctxKeyDir{}, dir)
+}
+
 func runcmd(t *testing.T, subdir []string, args []string) {
+	ctx := context.Background()
+	wd := filepath.Join(testdata(), filepath.Join(subdir...))
 	cmd := tool.BusCommand()
 	stdout := &bytes.Buffer{}
 	stderr := &bytes.Buffer{}
 
+	ctx = dirWithContext(ctx, wd)
+
 	st := &task.State{
 		Env:    []string{},
-		Dir:    filepath.Join(testdata(), filepath.Join(subdir...)),
+		Dir:    wd,
 		Stdout: stdout,
 		Stderr: stderr,
 		ErrorLogger: func(err error) {
@@ -39,7 +69,7 @@ func runcmd(t *testing.T, subdir []string, args []string) {
 			t.Log(msg)
 		},
 	}
-	err := task.ScriptAdd(cmd.Exec(args)).Run(context.Background(), st, nil)
+	err := task.ScriptAdd(cmd.Exec(args)).Run(ctx, st, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

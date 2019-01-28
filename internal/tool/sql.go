@@ -22,7 +22,11 @@ func (s *SQLGenerate) NodeTypes(ctx context.Context, header *bus.CallHeader, req
 func (s *SQLGenerate) Run(ctx context.Context, header *bus.CallHeader, request *bus.CallRunRequest) (*bus.CallRunResponse, error) {
 	c := request.Current
 	_ = c
-	// TODO(daniel.theophanes): produce an output, send to an http server (started on test system), that verifies it matches golden file.
+	// TODO(daniel.theophanes): run analysis on current, setup database, create tables, sort output by dependency order.
+	err := outputFile(ctx, request.Root, "schema.sql", []byte("-- This is pretend content."))
+	if err != nil {
+		return nil, err
+	}
 	return &bus.CallRunResponse{
 		CallVersion: 1,
 	}, nil

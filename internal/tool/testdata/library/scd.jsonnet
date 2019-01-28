@@ -1,10 +1,12 @@
 {
-    Root: "",
+    Root: "memory://verify/output",
     Enteries: [
         {
             Name: "SQL Gen",
-            Call: "memory:///tool/sql",
-            Options: {},
+            Call: "memory://run/tool/sql",
+            Options: {
+                variant: "postgres",
+            },
         },
     ],
 }
