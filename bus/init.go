@@ -45,6 +45,11 @@ func (b *Bus) Init() error {
 				continue
 			}
 			nt.roleLookup[r.Name] = r
+
+			if len(r.Properties) == 0 {
+				errs = errs.AppendMsg("bus: node type %q role %q contains zero properties, at least one is required", nt.Name, r.Name)
+			}
+
 			for ri := range r.Properties {
 				pr := &r.Properties[ri]
 				pr.defaultValue = nil
@@ -148,6 +153,23 @@ func (b *Bus) Init() error {
 				continue
 			}
 			n.roleLookup[r.Name] = r
+
+			// Check field count property.
+			switch r.roleType.FieldCount {
+			default:
+				errs = errs.AppendMsg("bus: unknown FieldCount in role type %q: %v", r.roleType.Name, r.roleType.FieldCount)
+			case ZeroPlus:
+				// All lengths of Fields okay.
+			case One:
+				if len(r.Fields) != 1 {
+					errs = errs.AppendMsg("bus: node %q role %q expects one field, but has %d", n.Name, r.Name, len(r.Fields))
+				}
+			case OnePlus:
+				if len(r.Fields) == 0 {
+					errs = errs.AppendMsg("bus: node %q role %q expects one or more fields, but has zero", n.Name, r.Name)
+				}
+			}
+
 			// Verify fields and aliases.
 			for fi := range r.Fields {
 				f := &r.Fields[fi]
@@ -197,21 +219,27 @@ func (b *Bus) Init() error {
 	return errs
 }
 
+// validType checks that the type name is a valid type.
+// Keep in sync with validValue.
 func validType(tp string) bool {
 	switch tp {
 	default:
 		return false
-	case "text":
-	case "int":
-	case "float":
-	case "bool":
-	case "decimal":
-	case "bytea":
-	case "node":
+	case "text": // string
+	case "int": // int64
+	case "float": // float64
+	case "bool": // bool
+	case "decimal": // *apd.Decimal
+	case "bytea": // []byte
+	case "node": // *Node
 	}
 	return true
 }
 
+// validValue takes the type name and value, and verifies it is a valid type and returns
+// a normalized value. For example a type with "int" and a string value of "123" will return
+// an int64 value of 123.
+// Keep in sync with validType.
 func validValue(tp string, v interface{}, findNode func(name string) *Node) (interface{}, error) {
 	switch tp {
 	default:

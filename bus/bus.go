@@ -1,25 +1,8 @@
 package bus
 
-type Node struct {
-	Name    string   // Name of the node.
-	NameAlt []string // Previous name of the node. Useful for renames.
-	Type    string
-	Roles   []Role
-	Binds   []Bind
-
-	names           []string           `json:"-"`
-	nodeType        *NodeType          `json:"-"`
-	roleLookup      map[string]*Role   `json:"-"`
-	bindAliasLookup map[string]*Bind   `json:"-"`
-	bindNameLookup  map[string][]*Bind `json:"-"`
-}
-type Bind struct {
-	Alias string
-	Name  string
-
-	node *Node `json:"-"`
-}
-type Side int
+// Side each role is on: a "left" side or "right" side.
+// The default is to have each role apply to both sides.
+type Side byte
 
 const (
 	SideBoth Side = iota
@@ -27,12 +10,61 @@ const (
 	SideRight
 )
 
+// FieldCount is the minimum number of fields that
+// should be present for a given role.
+type FieldCount byte
+
+const (
+	ZeroPlus FieldCount = iota // Optional lists.
+	One                        // Property row.
+	OnePlus                    // DB table.
+)
+
+// Bus is the primary databus definition.
+type Bus struct {
+	// Version is only set on checkpoint.
+	Version Version
+
+	Types []NodeType
+	Nodes []Node
+
+	// setup is true after the lookup fields are setup.
+	setup bool
+
+	nodeLookup map[string]*Node
+	typeLookup map[string]*NodeType
+}
+
+// Version of the Bus.
+type Version struct {
+	Version int64
+}
+
+// NodeType defines the types for nodes.
 type NodeType struct {
 	Name  string
 	Roles []RoleType
 
-	roleLookup map[string]*RoleType `json:"-"`
+	roleLookup map[string]*RoleType
 }
+
+// RoleType is the role type in a specific NodeType.
+// A single RoleType represents a single "table".
+type RoleType struct {
+	Name string
+
+	Side       Side
+	FieldCount FieldCount
+
+	Properties []Property
+
+	propNameLookup map[string]*Property
+}
+
+// Property of a RoleType. Each property is an aspect of a single "column".
+// To define a node with 5 "columns", where each column has a "name" and a "size",
+// Then the RoleType would define two properties: "name" and "size" and the
+// Role would define 5 Fields, each with two key value pairs.
 type Property struct {
 	Name     string
 	Type     string
@@ -44,23 +76,34 @@ type Property struct {
 	// defaultValue is logically the same as Default, but normalized and typed.
 	defaultValue interface{}
 }
-type RoleType struct {
-	Name string
-	// TODO(daniel.theophanes): Add FieldCount (One | ZeroPlus | OnePlus).
-	// DB table would be OnePlus, property row would be One, optional list would be ZeroPlus.
-	Properties []Property
 
-	propNameLookup map[string]*Property `json:"-"`
+// Node is an instance of a NodeType.
+type Node struct {
+	Name    string   // Name of the node.
+	NameAlt []string // Previous name of the node. Useful for renames.
+	Type    string
+	Roles   []Role
+	Binds   []Bind
+
+	names           []string
+	nodeType        *NodeType
+	roleLookup      map[string]*Role
+	bindAliasLookup map[string]*Bind
+	bindNameLookup  map[string][]*Bind
 }
+
+// Role of a given Node. Defines a data set for a single rectangular "table"
+// where each "cell" will have as many attibutes as the RoleType has properties.
 type Role struct {
 	Name   string
-	Side   Side
 	Fields []Field // Each field must match the Node Type role properties.
 
-	fieldIDLookup map[int64]*Field `json:"-"`
-	roleType      *RoleType        `json:"-"`
+	fieldIDLookup map[int64]*Field
+	roleType      *RoleType
 }
-type KV = map[string]interface{}
+
+// Field defines a single "column". Each "column" is made up of one or more properties
+// as defined in the RoleType.
 type Field struct {
 	// The field ID only needs to be set to a non-zero value before attempting to rename a stateful field.
 	// Once set, it should not be changed. ID value should not imply order.
@@ -77,53 +120,16 @@ type Field struct {
 	values KV
 }
 
-// Value returns the field value taking into account the role type property.
-// If name is not a valid property, Value will panic.
-func (f *Field) Value(name string) interface{} {
-	return nil
-}
+// KV defines a key-value pair, where the key is a string
+// and the value is any valid value type.
+type KV = map[string]interface{}
 
-type Version struct {
-	Version int64
-}
+// Bind creates an association between an alias name and a Node.
+// In a given Node, each alias must be unique, but the Name may
+// not be; a given node may bind to the same node in multiple ways.
+type Bind struct {
+	Alias string
+	Name  string
 
-type Bus struct {
-	// Version is only set on checkpoint.
-	Version Version
-
-	Nodes []Node
-	Types []NodeType
-
-	// setup is true after the lookup fields are setup.
-	setup bool
-
-	nodeLookup map[string]*Node     `json:"-"`
-	typeLookup map[string]*NodeType `json:"-"`
-}
-
-// Filter bus by node types.
-func (b *Bus) Filter(types []string) *Bus {
-	tlookup := make(map[string]bool, len(types))
-	for _, t := range types {
-		tlookup[t] = true
-	}
-
-	f := &Bus{
-		Version: b.Version,
-		Nodes:   make([]Node, 0, len(b.Nodes)),
-		Types:   make([]NodeType, 0, len(types)),
-	}
-	for _, n := range b.Nodes {
-		if !tlookup[n.Type] {
-			continue
-		}
-		f.Nodes = append(f.Nodes, n)
-	}
-	for _, t := range b.Types {
-		if !tlookup[t.Name] {
-			continue
-		}
-		f.Types = append(f.Types, t)
-	}
-	return f
+	node *Node
 }

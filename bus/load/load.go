@@ -52,7 +52,6 @@ func Decode(ctx context.Context, p string, v interface{}) error {
 		}
 		return nil
 	}
-	return fmt.Errorf("bus/load: unknown file extention %q", ext)
 }
 
 func DecodeReader(ctx context.Context, r io.Reader, v interface{}) error {
