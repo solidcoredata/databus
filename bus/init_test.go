@@ -1,4 +1,4 @@
-package analysis
+package bus_test
 
 import (
 	"context"
@@ -66,7 +66,7 @@ func TestVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal("load", err)
 	}
-	_, err = New(ctx, bus)
+	err = bus.Init()
 	if err != nil {
 		t.Fatal("validate", err)
 	}

@@ -1,7 +1,7 @@
 [
     {
         Name: "app1.coredata.biz/n/database",
-        NamePrev: "",
+        NameAlt: [],
         Type: "solidcoredata.org/t/db/database",
         Binds: [],
         Roles: [
@@ -15,7 +15,7 @@
     },
     {
         Name: "app1.coredata.biz/n/table/book",
-        NamePrev: "",
+        NameAlt: [],
         Type: "solidcoredata.org/t/db/table",
         Binds: [],
         Roles: [
@@ -38,7 +38,7 @@
     },
     {
         Name: "app1.coredata.biz/n/table/genre",
-        NamePrev: "",
+        NameAlt: [],
         Type: "solidcoredata.org/t/db/table",
         Binds: [],
         Roles: [

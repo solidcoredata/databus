@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"solidcoredata.org/src/databus/bus"
-	"solidcoredata.org/src/databus/bus/analysis"
 	"solidcoredata.org/src/databus/bus/sysfs"
 
 	"github.com/kardianos/task"
@@ -80,7 +79,7 @@ func validate(ctx context.Context, projectPath string) error {
 		return err
 	}
 
-	_, err = analysis.New(ctx, b)
+	err = b.Init()
 	if err != nil {
 		return err
 	}
@@ -117,16 +116,16 @@ func run(ctx context.Context, projectPath string, src bool) error {
 		bp = &bus.Bus{}
 	}
 
-	ac, err := analysis.New(ctx, bc)
+	err = bc.Init()
 	if err != nil {
 		return err
 	}
-	ap, err := analysis.New(ctx, bp)
+	err = bp.Init()
 	if err != nil {
 		return err
 	}
 
-	delta, err := analysis.NewDelta(ac, ap)
+	delta, err := bus.NewDelta(bc, bp)
 	if err != nil {
 		return err
 	}
@@ -164,16 +163,16 @@ func diff(ctx context.Context, projectPath string, src bool, out io.Writer) erro
 		bp = &bus.Bus{}
 	}
 
-	ac, err := analysis.New(ctx, bc)
+	err = bc.Init()
 	if err != nil {
 		return err
 	}
-	ap, err := analysis.New(ctx, bp)
+	err = bp.Init()
 	if err != nil {
 		return err
 	}
 
-	delta, err := analysis.NewDelta(ac, ap)
+	delta, err := bus.NewDelta(bc, bp)
 	if err != nil {
 		return err
 	}
@@ -204,16 +203,16 @@ func commit(ctx context.Context, projectPath string) error {
 	}
 	bc.Version.Version = bp.Version.Version + 1
 
-	ac, err := analysis.New(ctx, bc)
+	err = bc.Init()
 	if err != nil {
 		return err
 	}
-	ap, err := analysis.New(ctx, bp)
+	err = bp.Init()
 	if err != nil {
 		return err
 	}
 
-	delta, err := analysis.NewDelta(ac, ap)
+	delta, err := bus.NewDelta(bc, bp)
 	if err != nil {
 		return err
 	}

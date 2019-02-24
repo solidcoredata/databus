@@ -1,7 +1,7 @@
 [
     {
         Name: "app1.coredata.biz/n/ui/book",
-        NamePrev: "",
+        NameAlt: [],
         Type: "solidcoredata.org/t/ui/searchlistdetail",
         Binds: [
             {Alias: "b", Name: "app1.coredata.biz/n/table/book"},
@@ -29,7 +29,7 @@
     },
     {
         Name: "app1.coredata.biz/n/ui/genre",
-        NamePrev: "",
+        NameAlt: [],
         Type: "solidcoredata.org/t/ui/searchlistdetail",
         Binds: [
             {Alias: "g", Name: "app1.coredata.biz/n/table/genre"},

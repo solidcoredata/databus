@@ -1,15 +1,23 @@
 package bus
 
 type Node struct {
-	Name     string // Name of the node.
-	NamePrev string // Previous name of the node. Useful for renames.
-	Type     string
-	Roles    []Role
-	Binds    []Bind
+	Name    string   // Name of the node.
+	NameAlt []string // Previous name of the node. Useful for renames.
+	Type    string
+	Roles   []Role
+	Binds   []Bind
+
+	names           []string           `json:"-"`
+	nodeType        *NodeType          `json:"-"`
+	roleLookup      map[string]*Role   `json:"-"`
+	bindAliasLookup map[string]*Bind   `json:"-"`
+	bindNameLookup  map[string][]*Bind `json:"-"`
 }
 type Bind struct {
 	Alias string
 	Name  string
+
+	node *Node `json:"-"`
 }
 type Side int
 
@@ -22,6 +30,8 @@ const (
 type NodeType struct {
 	Name  string
 	Roles []RoleType
+
+	roleLookup map[string]*RoleType `json:"-"`
 }
 type Property struct {
 	Name     string
@@ -29,18 +39,26 @@ type Property struct {
 	Optional bool
 	Send     bool // Set the value in other connected nodes that have Recv == true.
 	Recv     bool
-	Default  string
+	Default  interface{}
+
+	// defaultValue is logically the same as Default, but normalized and typed.
+	defaultValue interface{}
 }
 type RoleType struct {
 	Name string
 	// TODO(daniel.theophanes): Add FieldCount (One | ZeroPlus | OnePlus).
 	// DB table would be OnePlus, property row would be One, optional list would be ZeroPlus.
 	Properties []Property
+
+	propNameLookup map[string]*Property `json:"-"`
 }
 type Role struct {
 	Name   string
 	Side   Side
 	Fields []Field // Each field must match the Node Type role properties.
+
+	fieldIDLookup map[int64]*Field `json:"-"`
+	roleType      *RoleType        `json:"-"`
 }
 type KV = map[string]interface{}
 type Field struct {
@@ -51,6 +69,18 @@ type Field struct {
 	// Bound Alias name.
 	Alias string
 	KV    KV
+
+	// Same logical values as in KV, but each value is normalized to
+	// the field type, defaults taken into account.
+	// If a value for KV is absent, but has a property, then it is
+	// entered in values with a value of nil.
+	values KV
+}
+
+// Value returns the field value taking into account the role type property.
+// If name is not a valid property, Value will panic.
+func (f *Field) Value(name string) interface{} {
+	return nil
 }
 
 type Version struct {
@@ -63,6 +93,12 @@ type Bus struct {
 
 	Nodes []Node
 	Types []NodeType
+
+	// setup is true after the lookup fields are setup.
+	setup bool
+
+	nodeLookup map[string]*Node     `json:"-"`
+	typeLookup map[string]*NodeType `json:"-"`
 }
 
 // Filter bus by node types.
