@@ -1,3 +1,5 @@
+// Package bus defines and sets up the Bus, Node and Role
+// data types.
 package bus
 
 // Side each role is on: a "left" side or "right" side.
@@ -33,6 +35,7 @@ type Bus struct {
 
 	nodeLookup map[string]*Node
 	typeLookup map[string]*NodeType
+	nodeByType map[string][]*Node // map[NodeType.Name][]*Node
 }
 
 // Version of the Bus.

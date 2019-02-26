@@ -27,6 +27,7 @@ func (b *Bus) Init() error {
 	b.setup = false
 	b.nodeLookup = make(map[string]*Node, len(b.Nodes))
 	b.typeLookup = make(map[string]*NodeType, len(b.Types))
+	b.nodeByType = make(map[string][]*Node, len(b.Types))
 
 	for ni := range b.Types {
 		nt := &b.Types[ni]
@@ -94,6 +95,7 @@ func (b *Bus) Init() error {
 		}
 		// Create bind lookups.
 		b.nodeLookup[n.Name] = n
+		b.nodeByType[n.nodeType.Name] = append(b.nodeByType[n.nodeType.Name], n)
 
 		if len(n.NameAlt) > 0 {
 			for _, alt := range n.NameAlt {

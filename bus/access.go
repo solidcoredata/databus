@@ -31,6 +31,63 @@ func (b *Bus) Filter(types []string) *Bus {
 	return f
 }
 
+// Node returns a *Node by name.
+func (b *Bus) Node(name string) *Node {
+	return b.nodeLookup[name]
+}
+
+func (b *Bus) NodeByType(typeName ...string) []*Node {
+	ret := make([]*Node, 0, 20)
+	for _, tn := range typeName {
+		list := b.nodeByType[tn]
+		if len(list) == 0 {
+			continue
+		}
+		ret = append(ret, list...)
+	}
+	return ret
+}
+
+// NodeType returns a *NodeType by node type name.
+func (b *Bus) NodeType(name string) *NodeType {
+	return b.typeLookup[name]
+}
+
+// RoleType returns the RoleType name.
+func (nt *NodeType) RoleType(name string) *RoleType {
+	return nt.roleLookup[name]
+}
+
+// Property returns the Property name.
+func (rt *RoleType) Property(name string) *Property {
+	return rt.propNameLookup[name]
+}
+
+// Return the normalized default value.
+func (p *Property) DefaultValue() interface{} {
+	return p.defaultValue
+}
+
+// NodeType returns the associated NodeType to the Node.
+func (n *Node) NodeType() *NodeType {
+	return n.nodeType
+}
+
+// Role returns the Role name.
+func (n *Node) Role(name string) *Role {
+	return n.roleLookup[name]
+}
+
+// RoleType returns the associated RoleType.
+func (r *Role) RoleType() *RoleType {
+	return r.roleType
+}
+
+// BindAlias returns the Bind by alias.
+func (n *Node) BindAlias(alias string) *Bind {
+	return n.bindAliasLookup[alias]
+}
+
 // Value returns the field value taking into account the role type property.
 // If name is not a valid property, Value will panic.
 func (f *Field) Value(name string) interface{} {
@@ -39,4 +96,9 @@ func (f *Field) Value(name string) interface{} {
 		panic(fmt.Errorf("property %q not present", name))
 	}
 	return v
+}
+
+// Node returns the associated Node to the Bind.
+func (b *Bind) Node() *Node {
+	return b.node
 }
