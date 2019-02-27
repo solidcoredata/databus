@@ -6,6 +6,8 @@ github.com/google/go-jsonnet v0.12.1 h1:v0iUm/b4SBz7lR/diMoz9tLAz8lqtnNRKIwMrmU2
 github.com/google/go-jsonnet v0.12.1/go.mod h1:gVu3UVSfOt5fRFq+dh9duBqXa5905QY8S1QvMNcEIVs=
 github.com/kardianos/task v0.0.0-20180920220249-6720c7c6e404 h1:Y5+7Dim3c8F8mOhGOm5B9dBtEcIVDpRrEysjTGPjBT4=
 github.com/kardianos/task v0.0.0-20180920220249-6720c7c6e404/go.mod h1:x+BWtj2tR0dvFSVU2voVTcoZ6YSnwmmQv/Q62qcRUfs=
+github.com/kardianos/task v0.0.0-20190226182613-6aa03cc28927 h1:wLhuhpJ8D3sRhQ8BF6kY7f/POVjKpyEt11PuUFt6iwc=
+github.com/kardianos/task v0.0.0-20190226182613-6aa03cc28927/go.mod h1:x+BWtj2tR0dvFSVU2voVTcoZ6YSnwmmQv/Q62qcRUfs=
 github.com/lib/pq v1.0.0 h1:X5PMW56eZitiTeO7tKzZxFCSpbFZJtkMMooicw2us9A=
 github.com/lib/pq v1.0.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=
 github.com/pkg/errors v0.8.0 h1:WdK/asTD0HN+q6hsWO3/vpuAkAr+tw6aNJNDFFf0+qw=

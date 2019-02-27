@@ -58,7 +58,7 @@ func runcmd(t *testing.T, subdir []string, args []string) {
 	ctx = dirWithContext(ctx, wd)
 
 	st := &task.State{
-		Env:    []string{},
+		Env:    map[string]string{},
 		Dir:    wd,
 		Stdout: stdout,
 		Stderr: stderr,
