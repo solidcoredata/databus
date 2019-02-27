@@ -3,16 +3,25 @@ package tool_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/kardianos/task"
+	"github.com/lib/pq"
 	"solidcoredata.org/src/databus/bus/sysfs"
 	"solidcoredata.org/src/databus/internal/tool"
 )
+
+// Start a server listening for SQL connections on localhost:9999.
+// cockroach start --insecure --listen-addr=localhost:9999 --store=type=mem,size=1GiB --logtostderr=NONE
 
 func init() {
 	sysfs.RegisterMemoryRunner("memory://run/tool/sql", &tool.SQLGenerate{})
@@ -25,7 +34,67 @@ func testdata() string {
 	return filepath.Join(dir, "testdata")
 }
 
+type waitForMsg struct {
+	lk  sync.Mutex
+	Msg []byte
+
+	done bool
+}
+
+func (w *waitForMsg) Wait() {
+	w.lk.Lock()
+}
+
+func (w *waitForMsg) Write(b []byte) (int, error) {
+	if w.done {
+		return len(b), nil
+	}
+	// This is not entirely correct, but will likely work for this use case.
+	if bytes.Contains(b, w.Msg) {
+		w.done = true
+		w.lk.Unlock()
+	}
+	return len(b), nil
+}
+
 func verifyOutput(ctx context.Context, filename string, content []byte) error {
+	// If crdb is available, try to create the database script.
+	crdb, err := exec.LookPath("cockroach")
+	if err == nil {
+		ctx, stop := context.WithCancel(ctx)
+		defer stop()
+
+		w := &waitForMsg{Msg: []byte("nodeID:")}
+		cmd := exec.CommandContext(ctx, crdb, strings.Split("start --insecure --listen-addr=localhost:9999 --store=type=mem,size=1GiB --logtostderr=NONE", " ")...)
+		cmd.Stdout = w
+		err := cmd.Start()
+		if err != nil {
+			return fmt.Errorf("unable to run cockroach: %v", err)
+		}
+		w.Wait()
+		connector, err := pq.NewConnector("postgres://root@localhost:9999?sslmode=disable")
+		if err != nil {
+			return err
+		}
+		pool := sql.OpenDB(connector)
+		defer pool.Close()
+
+		for i := 0; i < 10; i++ {
+			err := pool.PingContext(ctx)
+			if err == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+
+		_, err = pool.ExecContext(ctx, string(content))
+		if err != nil {
+			return err
+		}
+		cmd.Process.Kill()
+	}
+
+	// Now compare the generated SQL to the golden sql.``
 	p := filepath.Join(dirFromContext(ctx), "output", filename)
 	// Read file at p.
 	// Compare to content.

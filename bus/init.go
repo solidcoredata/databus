@@ -232,7 +232,7 @@ func validType(tp string) bool {
 	case "float": // float64
 	case "bool": // bool
 	case "decimal": // *apd.Decimal
-	case "bytea": // []byte
+	case "bytes": // []byte
 	case "node": // *Node
 	}
 	return true
@@ -362,7 +362,7 @@ func validValue(tp string, v interface{}, findNode func(name string) *Node) (int
 			}
 			return dec, nil
 		}
-	case "bytea":
+	case "bytes":
 		switch v := v.(type) {
 		default:
 			return nil, fmt.Errorf("expected %[1]s got %[2]T (%[2]v)", tp, v)
