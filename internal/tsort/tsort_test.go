@@ -1,23 +1,23 @@
 package tsort
 
 import (
-	"testing"
 	"reflect"
+	"testing"
 )
 
 func TestTSort(t *testing.T) {
-	list := []struct{
+	list := []struct {
 		Name string
-		In []Node
-		Out [][]string
-		Err string
+		In   []Node
+		Out  [][]string
+		Err  string
 	}{
 		{
 			Name: "A",
 			In: []Node{
 				{ID: "a", Dependencies: []string{"b", "c"}},
-				{ID: "b", Dependencies: []string{"d"}},
 				{ID: "c", Dependencies: []string{"d"}},
+				{ID: "b", Dependencies: []string{"d"}},
 				{ID: "d"},
 			},
 			Out: [][]string{{"d"}, {"b", "c"}, {"a"}},

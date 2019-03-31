@@ -1,7 +1,9 @@
+// Package tsort implements a layered topological sort.
 package tsort
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -113,6 +115,13 @@ func Sort(nodes []Node) (layers [][]string, err error) {
 			}
 		}
 		layers = append(layers, layer)
+	}
+	
+	// Ensure consistent order is always returned.
+	for _, l := range layers {
+		sort.Slice(l, func(i, j int) bool {
+			return l[i] < l[j]
+		})
 	}
 	return layers, nil
 }
