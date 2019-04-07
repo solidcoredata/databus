@@ -7,10 +7,30 @@ import (
 	"strings"
 )
 
-// Node that may contain zero or more dependencies
-type Node struct {
-	ID           string
-	Dependencies []string
+// NodeCollection contains a list of nodes that can be sorted.
+type NodeCollection interface {
+	Index(i int) Node
+	Len() int
+	Swap(i, j int)
+}
+
+type sortableNodeCollection struct {
+	NodeCollection
+
+	pos map[string]int
+}
+
+func (s sortableNodeCollection) Less(i, j int) bool {
+	a, b := s.Index(i), s.Index(j)
+	an, bn := a.ID(), b.ID()
+	ai, bi := s.pos[an], s.pos[bn]
+	return ai < bi
+}
+
+// Node that may contain zero or more dependencies.
+type Node interface {
+	ID() string
+	ToNode() []string
 }
 
 // ErrCircular is may be returned from Sort if the given nodes
@@ -42,29 +62,33 @@ func (nset namedSet) String() string {
 }
 
 // Sort the given nodes into layers.
-func Sort(nodes []Node) (layers [][]string, err error) {
+func Sort(nc NodeCollection) (err error) {
 	IDDep := make(namedSet)
 	DepID := make(namedSet)
-	for _, n := range nodes {
-		if _, ok := IDDep[n.ID]; ok {
-			return nil, fmt.Errorf("Node %q is present more then once", n.ID)
+	for i := 0; i < nc.Len(); i++ {
+		n := nc.Index(i)
+
+		nid := n.ID()
+		if _, ok := IDDep[nid]; ok {
+			return fmt.Errorf("Node %q is present more then once", nid)
 		}
-		IDDep[n.ID] = make(map[string]bool)
-		for _, dep := range n.Dependencies {
-			if dep == n.ID {
+		IDDep[nid] = make(map[string]bool)
+		for _, dep := range n.ToNode() {
+			if dep == nid {
 				continue
 			}
-			IDDep[n.ID][dep] = true
+			IDDep[nid][dep] = true
 			if _, ok := DepID[dep]; !ok {
 				DepID[dep] = make(map[string]bool)
 			}
-			DepID[dep][n.ID] = true
+			DepID[dep][nid] = true
 		}
 	}
 
 	type pair struct {
 		ID, Dep string
 	}
+	layers := make([][]string, 0, nc.Len())
 
 	// Process nodes until all nodes have no dependencies.
 	// If one or more node remains, then there is a circular reference.
@@ -98,7 +122,7 @@ func Sort(nodes []Node) (layers [][]string, err error) {
 			}
 			if 0 == len(loopID) {
 				err := ErrCircular{IDDep}
-				return layers, err
+				return err
 			}
 		}
 
@@ -116,12 +140,25 @@ func Sort(nodes []Node) (layers [][]string, err error) {
 		}
 		layers = append(layers, layer)
 	}
-	
-	// Ensure consistent order is always returned.
+
+	// Ensure a consistent order.
+
+	posMap := make(map[string]int, nc.Len())
+	pos := 0
 	for _, l := range layers {
 		sort.Slice(l, func(i, j int) bool {
 			return l[i] < l[j]
 		})
+		for _, id := range l {
+			posMap[id] = pos
+			pos++
+		}
 	}
-	return layers, nil
+
+	sort.Sort(sortableNodeCollection{
+		NodeCollection: nc,
+		pos:            posMap,
+	})
+
+	return nil
 }
