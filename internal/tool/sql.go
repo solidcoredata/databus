@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sort"
 
 	"solidcoredata.org/src/databus/bus"
+	"solidcoredata.org/src/databus/internal/tsort"
 )
 
 var _ bus.RunStart = &SQLGenerate{}
@@ -49,20 +49,30 @@ func (s *SQLGenerate) Run(ctx context.Context, header *bus.CallHeader, request *
 	}, nil
 }
 
+var _ tsort.NodeCollection = (*bussort)(&bus.Bus{})
+
+// TODO(daniel.theophanes): finish bussort implementation.
+type bussort bus.Bus
+
+func (bs *bussort) Index(i int) tsort.Node {
+	return tsort.Node(bs.Nodes[i])
+}
+func (bs *bussort) Len() int {
+	return len(bs.Nodes)
+}
+func (bs *bussort) Swap(i, j int) {
+	bs.Nodes[i], bs.Nodes[j] = bs.Nodes[j], bs.Nodes[i]
+}
+
 func (s *SQLGenerate) cockroach(b *bus.Bus, buf *bytes.Buffer) error {
-	nodes := b.Nodes
-	// TODO(daniel.theophanes): Don't just sort by name, sort by reverse dependency order, then by name.
-	sort.Slice(nodes, func(i, j int) bool {
-		a, b := nodes[i], nodes[j]
-		if a.Type == b.Type {
-			return a.Name < b.Name
-		}
-		return a.Type < b.Type
-	})
+	err := tsort.Sort((*bussort)(b))
+	if err != nil {
+		return err
+	}
 	w := func(s string, v ...interface{}) {
 		fmt.Fprintf(buf, s, v...)
 	}
-	for _, n := range nodes {
+	for _, n := range b.Nodes {
 		switch n.Type {
 		default:
 			return fmt.Errorf("unknown type: %q", n.Type)

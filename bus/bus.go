@@ -95,6 +95,23 @@ type Node struct {
 	bindNameLookup  map[string][]*Bind
 }
 
+func (n Node) ID() string {
+	return n.Name
+}
+
+func (n Node) ToNode() []string {
+	ret := make([]string, 0, len(n.Binds))
+	for _, b := range n.Binds {
+		ret = append(ret, b.node.Name)
+	}
+	for _, r := range n.Roles {
+		for _, f := range r.Fields {
+			_ = f
+		}
+	}
+	return ret
+}
+
 // Role of a given Node. Defines a data set for a single rectangular "table"
 // where each "cell" will have as many attibutes as the RoleType has properties.
 type Role struct {

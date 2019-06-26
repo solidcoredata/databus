@@ -46,13 +46,28 @@ func (err ErrCircular) Error() string {
 type namedSet map[string]map[string]bool
 
 func (nset namedSet) String() string {
+	// Copy maps to list and sort list before displaying.
+	// Ensures a consistent output.
 	buf := &strings.Builder{}
 	buf.WriteString("circular reference:\n")
-	for key, set := range nset {
+	list := make([]string, 0, len(nset))
+	setList := []string{}
+	for key := range nset {
+		list = append(list, key)
+	}
+	sort.Strings(list)
+	for _, key := range list {
+		set := nset[key]
 		buf.WriteString("- ")
 		buf.WriteString(key)
 		buf.WriteRune('\n')
+
+		setList = setList[:0]
 		for dep := range set {
+			setList = append(setList, dep)
+		}
+		sort.Strings(setList)
+		for _, dep := range setList {
 			buf.WriteString("--- ")
 			buf.WriteString(dep)
 			buf.WriteRune('\n')

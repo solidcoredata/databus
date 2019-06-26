@@ -9,7 +9,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/cockroachdb/apd"
+	"github.com/cockroachdb/apd/v2"
 )
 
 func (b *Bus) findNode(name string) *Node {
