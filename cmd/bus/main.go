@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"solidcoredata.org/src/databus/internal/start"
 	"solidcoredata.org/src/databus/internal/tool"
 
 	"github.com/kardianos/task"
@@ -30,7 +29,7 @@ import (
 
 func main() {
 	cmd := tool.BusCommand()
-	err := start.Start(context.Background(), time.Second*2, func(ctx context.Context) error {
+	err := task.Start(context.Background(), time.Second*2, func(ctx context.Context) error {
 		st := task.DefaultState()
 		return cmd.Exec(os.Args[1:]).Run(context.Background(), st, nil)
 	})

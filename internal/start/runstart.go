@@ -7,11 +7,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/kardianos/task"
 	"solidcoredata.org/src/databus/bus"
 )
 
 func Run(ctx context.Context, rs bus.RunStart) error {
-	return Start(ctx, time.Second*1, func(ctx context.Context) error {
+	return task.Start(ctx, time.Second*1, func(ctx context.Context) error {
 		decode := json.NewDecoder(os.Stdin)
 		decode.DisallowUnknownFields()
 		decode.UseNumber()
