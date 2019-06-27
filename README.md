@@ -41,3 +41,4 @@ what to do with the results of the generation. A few thoughts:
    to manage everything under that path itself.
  * During a deploy, each extension also manages the deploy, so it knows
    how to read the extension managed root.
+
