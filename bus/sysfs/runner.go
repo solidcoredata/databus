@@ -5,6 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"sync"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -12,14 +15,26 @@ import (
 	"solidcoredata.org/src/databus/bus"
 )
 
-var memoryReg = map[string]bus.RunStart{}
+type memoryType struct {
+	mu sync.Mutex
+	files map[string][]byte
+	rs bus.RunStart
+	verify verifyFunc
+}
+type verifyFunc func(ctx context.Context, filename string, content []byte) error
 
-func RegisterMemoryRunner(name string, r bus.RunStart) {
+var memoryReg = map[string]*memoryType{}
+
+func RegisterMemoryRunner(name string, r bus.RunStart, verify verifyFunc) {
 	_, exist := memoryReg[name]
 	if exist {
 		panic(fmt.Errorf("run start %q already exists in registry", name))
 	}
-	memoryReg[name] = r
+	memoryReg[name] = &memoryType{
+		files: make(map[string][]byte),
+		rs: r,
+		verify: verify,
+	}
 }
 
 var _ bus.Runner = &runner{}
@@ -56,7 +71,7 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 	wd := setup.Root
 	var errs *bus.Errors
 	if len(wd) == 0 {
-		wd = filepath.Join(r.root, "run")
+		wd = filepath.Join(r.root, "generate")
 	}
 	s := stdbuf{
 		wd:   wd,
@@ -96,7 +111,6 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 		header.Type = headerRun
 		runReq := &bus.CallRunRequest{
 			CallVersion: ntResp.CallVersion,
-			Root:        wd,
 
 			Current:  currentBus.Filter(ntResp.NodeTypes),
 			Previous: previousBus.Filter(ntResp.NodeTypes),
@@ -119,6 +133,35 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 			errs = errs.AppendMsg("%s: invalid call version %d, %d", e.Name, runResp.CallVersion, ntResp.CallVersion)
 			continue
 		}
+		for _, file := range runResp.Files {
+			if strings.HasPrefix(wd, "memory://") {
+				mt, ok := memoryReg[e.Call]
+				if !ok {
+					return fmt.Errorf("call %q not found in registry", e.Call)
+				}
+				mt.mu.Lock()
+				mt.files[file.Path] = file.Content
+				mt.mu.Unlock()
+				if mt.verify != nil {
+					err = mt.verify(ctx, file.Path, file.Content)
+					if err != nil {
+						errs = errs.Append(err)
+					}
+				}
+				continue
+			}
+			p := filepath.Join(wd, "output", e.Name, filepath.Clean(file.Path))
+			pdir, _ := filepath.Split(p)
+			err = os.MkdirAll(pdir, 0700)
+			if err != nil {
+				errs = errs.Append(err)
+				break
+			}
+			err = ioutil.WriteFile(p, file.Content, 0600)
+			if err != nil {
+				errs = errs.Append(err)
+			}
+		}
 	}
 	if errs != nil {
 		return errs
@@ -128,10 +171,11 @@ func (r *runner) Run(ctx context.Context, setup bus.Project, currentBus *bus.Bus
 
 func (r *runner) runExec(ctx context.Context, s stdbuf, call string, inheader *bus.CallHeader, inObj, outObj interface{}) error {
 	if strings.HasPrefix(call, "memory://") {
-		rs, ok := memoryReg[call]
+		mt, ok := memoryReg[call]
 		if !ok {
 			return fmt.Errorf("call %q not found in registry", call)
 		}
+		rs := mt.rs
 		switch inheader.Type {
 		default:
 			return fmt.Errorf("unknown header type: %s", inheader.Type)

@@ -24,8 +24,7 @@ import (
 // cockroach start --insecure --listen-addr=localhost:9999 --store=type=mem,size=1GiB --logtostderr=NONE
 
 func init() {
-	sysfs.RegisterMemoryRunner("memory://run/tool/sql", &tool.SQLGenerate{})
-	tool.RegisterOutputHandler("memory://verify/output", verifyOutput)
+	sysfs.RegisterMemoryRunner("memory://run/tool/sql", &tool.SQLGenerate{}, verifyOutput)
 }
 
 func testdata() string {
@@ -79,12 +78,15 @@ func verifyOutput(ctx context.Context, filename string, content []byte) error {
 		pool := sql.OpenDB(connector)
 		defer pool.Close()
 
-		for i := 0; i < 10; i++ {
-			err := pool.PingContext(ctx)
+		for i := 0; i < 30; i++ {
+			err = pool.PingContext(ctx)
 			if err == nil {
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to ping database: %v", err)
 		}
 
 		_, err = pool.ExecContext(ctx, string(content))
@@ -151,5 +153,5 @@ func runcmd(t *testing.T, subdir []string, args []string) {
 }
 
 func TestSQL(t *testing.T) {
-	runcmd(t, []string{"library"}, []string{"run", "-src"})
+	runcmd(t, []string{"library"}, []string{"generate", "-src"})
 }

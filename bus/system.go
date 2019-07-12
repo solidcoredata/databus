@@ -63,15 +63,19 @@ type CallNodeTypesResponse struct {
 
 type CallRunRequest struct {
 	CallVersion int64
-	Root        string
 
 	Current  *Bus
 	Previous *Bus
 	DeltaBus *DeltaBus
 }
+type CallRunFile struct {
+	Path    string // Relative path.
+	Content []byte
+}
 type CallRunResponse struct {
 	CallVersion int64
 	Errors      []string
+	Files       []CallRunFile
 }
 
 type RunStart interface {

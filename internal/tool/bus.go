@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -18,12 +19,12 @@ func BusCommand() *task.Command {
 
 	cmd := &task.Command{
 		Flags: []*task.Flag{fProject},
-		Usage: `Solid Core Data Bus
+		Usage: fmt.Sprintf(`Solid Core Data Bus
 
-The root of the data bus project is defined by a "` + sysfs.ConfigFilename + `" file.
+The root of the data bus project is defined by a %q file.
 Tasks set to run are defined in this file as well.
-The source for the current input bus should live under "` + filepath.Join(sysfs.InputDir, sysfs.InputFilename) + `".
-`,
+The source for the current input bus should live under %q.
+`, sysfs.ConfigFilename, filepath.Join(sysfs.InputDir, sysfs.InputFilename)),
 		Commands: []*task.Command{
 			{
 				Name:  "validate",
@@ -52,13 +53,29 @@ The source for the current input bus should live under "` + filepath.Join(sysfs.
 				}),
 			},
 			{
-				Name:  "run",
-				Usage: "Run the configured tasks on the data bus. Defaults to running on the last commited bus.",
+				Name:  "generate",
+				Usage: "Generate the configured tasks on the data bus. Defaults to running on the last commited bus.",
 				Flags: []*task.Flag{fSrc},
 				Action: task.ActionFunc(func(ctx context.Context, st *task.State, sc task.Script) error {
 					project := st.Default(fProject.Name, "").(string)
 					src := st.Default(fSrc.Name, false).(bool)
 					return run(ctx, st.Filepath(project), src)
+				}),
+			},
+			{
+				Name:  "deploy",
+				Usage: "Deploy the current configuration to a running system.",
+				Flags: []*task.Flag{fSrc},
+				Action: task.ActionFunc(func(ctx context.Context, st *task.State, sc task.Script) error {
+					return fmt.Errorf("deploy not implemented")
+				}),
+			},
+			{
+				Name:  "ui",
+				Usage: "Show the development user interface.",
+				Flags: []*task.Flag{fSrc},
+				Action: task.ActionFunc(func(ctx context.Context, st *task.State, sc task.Script) error {
+					return fmt.Errorf("ui not implemented")
 				}),
 			},
 		},

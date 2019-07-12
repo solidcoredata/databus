@@ -5,7 +5,7 @@
             Name: "SQL Gen",
             Call: "memory://run/tool/sql",
             Options: {
-                variant: "cockroach",
+                variant: "crdb",
             },
         },
     ],

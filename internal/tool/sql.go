@@ -34,18 +34,17 @@ func (s *SQLGenerate) Run(ctx context.Context, header *bus.CallHeader, request *
 	switch variant := header.Options["variant"]; variant {
 	default:
 		return nil, fmt.Errorf("unknown SQL variant type %q", variant)
-	case "cockroach":
+	case "crdb":
 		err := s.cockroach(c, buf)
 		if err != nil {
 			return nil, err
 		}
 	}
-	err := outputFile(ctx, request.Root, "schema.sql", buf.Bytes())
-	if err != nil {
-		return nil, err
-	}
 	return &bus.CallRunResponse{
 		CallVersion: 1,
+		Files: []bus.CallRunFile{
+			{Path: "schema.sql", Content: buf.Bytes()},
+		},
 	}, nil
 }
 
