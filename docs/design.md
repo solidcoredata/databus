@@ -16,3 +16,10 @@ Don't pass back the files for the bus tool to write.
    b. Tool determins what updates need to happen and in what order
       based on definition relationships and update order.
    c. Tool calls extensions to deploy updates in turn.
+
+## Storing Versions.
+
+Store version by unique hash. But before it can bump the head version pointer
+it must ensure that the changes are compatible. Unsure of many details,
+but want to allow for conflict free merges in the normal case, so probably
+can't rely on a incrementing number in this case.

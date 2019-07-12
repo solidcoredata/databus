@@ -6,19 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"sync"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"solidcoredata.org/src/databus/bus"
 )
 
 type memoryType struct {
-	mu sync.Mutex
-	files map[string][]byte
-	rs bus.RunStart
+	mu     sync.Mutex
+	files  map[string][]byte
+	rs     bus.RunStart
 	verify verifyFunc
 }
 type verifyFunc func(ctx context.Context, filename string, content []byte) error
@@ -31,8 +31,8 @@ func RegisterMemoryRunner(name string, r bus.RunStart, verify verifyFunc) {
 		panic(fmt.Errorf("run start %q already exists in registry", name))
 	}
 	memoryReg[name] = &memoryType{
-		files: make(map[string][]byte),
-		rs: r,
+		files:  make(map[string][]byte),
+		rs:     r,
 		verify: verify,
 	}
 }
