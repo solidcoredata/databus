@@ -7,31 +7,14 @@ import (
 	"solidcoredata.org/src/databus/bus"
 )
 
-// Caller represents the CLI tool right now.
-// This should probably be a struct, not an interface.
-// The caller will provide a few abstractions:
-//  * How to read the Bus definition. Almost certainly fetch from local disk for a long time.
-//  * How to read, write, and list the bus and delta bus versions. This could be local disk or object storage.
-//  * How to read and write extension files (disk, memory, object storage).
-//  * How to register and call extensions.
-//    - The first extensions will be compiled into the main CLI.
-//    - Later it could be changed to a plugin system like github.com/hashicorp/go-plugin.
-type Caller interface {
-	Validate()
-	Diff()
-	Commit()
-	Generate()
-	Deploy()
-	UI()
-}
-
 type ExtensionAbout struct {
+	Name        string
 	HandleTypes []string
 }
 
 type Extension interface {
 	// Return information what this extension can handle and do.
-	AboutSelf() (ExtensionAbout, error)
+	AboutSelf(ctx context.Context) (ExtensionAbout, error)
 
 	// Extension specific Bus validation.
 	Validate(ctx context.Context, b *bus.Bus) error
@@ -74,17 +57,6 @@ type ExtensionVersionWriter interface {
 }
 
 type ExtensionRegister interface {
-	List() ([]string, error)
-	Get(name string) (Extension, error)
-}
-
-type CallerSetup struct {
-	BusReader
-	BusVersioner
-	ExtensionReadWriter
-	ExtensionRegister
-}
-
-func NewCaller(setup CallerSetup) (Caller, error) {
-	panic("TODO")
+	List(ctx context.Context) ([]string, error)
+	Get(ctx context.Context, name string) (Extension, error)
 }
