@@ -21,10 +21,20 @@ type Extension interface {
 
 	// Generate and write files. Note, no file list is provided so extensions should
 	// write a manafest file of some type by a well known name.
-	Generate(ctx context.Context, writeFile ExtensionVersionWriter) error
+	Generate(ctx context.Context, b *bus.Bus, writeFile ExtensionVersionWriter) error
 
 	// Read generated files and deploy to system.
-	Deploy(ctx context.Context, readFile ExtensionVersionReader) error
+	Deploy(ctx context.Context, opts *DeployOptions, b *bus.Bus, readFile ExtensionVersionReader) error
+}
+
+type DeployOptions struct {
+	EnvironmentName   string   // Environment name to deploy to.
+	CreateEnvironment bool     // Create an environment if none found with name.
+	RunTasks          []string // Run these tasks within the environment.
+
+	// Delete the environment when finished.
+	// When true and Create is false and tasks are empty, looks for and deletes environment only.
+	DeleteEnvironment bool
 }
 
 // Read the current, in-progress definition.
@@ -36,7 +46,7 @@ type BusReader interface {
 type BusVersioner interface {
 	List(ctx context.Context) ([]bus.Version, error)
 	Get(ctx context.Context, v bus.Version) (*bus.Bus, error)
-	Ammend(ctx context.Context, existing bus.Version, b *bus.Bus) (bus.Version, error)
+	Amend(ctx context.Context, existing bus.Version, b *bus.Bus) (bus.Version, error)
 	Commit(ctx context.Context, b *bus.Bus) (bus.Version, error)
 }
 
@@ -47,14 +57,10 @@ type ExtensionReadWriter interface {
 }
 
 // Used by an extension to read a given file.
-type ExtensionVersionReader interface {
-	Get(ctx context.Context, path string) ([]byte, error)
-}
+type ExtensionVersionReader func(ctx context.Context, path string) ([]byte, error)
 
 // Used by an extension to write a given file.
-type ExtensionVersionWriter interface {
-	Put(ctx context.Context, path string, content []byte) error
-}
+type ExtensionVersionWriter func(ctx context.Context, path string, content []byte) error
 
 type ExtensionRegister interface {
 	List(ctx context.Context) ([]string, error)

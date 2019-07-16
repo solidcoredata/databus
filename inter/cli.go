@@ -2,6 +2,7 @@ package inter
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -93,19 +94,33 @@ The source for the current input bus should live under %q.
 						if err != nil {
 							return err
 						}
-						return caller.Diff(ctx, src)
+						diff, err := caller.Diff(ctx, src)
+						if err != nil {
+							return err
+						}
+						st.Log(diff.String())
+						return nil
 					}),
 				},
 				{
 					Name:  "commit",
 					Usage: "Commit the data bus as a new version.",
+					Flags: []*task.Flag{
+						{Name: "amend", Type: task.FlagBool, Default: false, Usage: "Revise the most recent commit."},
+					},
 					Action: task.ActionFunc(func(ctx context.Context, st *task.State, sc task.Script) error {
 						project := st.Default(fProject.Name, "").(string)
+						amend := st.Default("amend", false).(bool)
 						caller, err := setupSystem(project)
 						if err != nil {
 							return err
 						}
-						return caller.Commit(ctx)
+						ver, err := caller.Commit(ctx, amend)
+						if err != nil {
+							return err
+						}
+						st.Logf("Version: %d-%s", ver.Sequence, hex.EncodeToString(ver.Identifier[:]))
+						return nil
 					}),
 				},
 				{
@@ -125,7 +140,11 @@ The source for the current input bus should live under %q.
 				{
 					Name:  "deploy",
 					Usage: "Deploy the current configuration to a running system.",
-					Flags: []*task.Flag{fSrc},
+					Flags: []*task.Flag{
+						fSrc,
+						{Name: "create", Type: task.FlagBool, Default: false, Usage: ""},
+						{Name: "delete", Type: task.FlagBool, Default: false, Usage: ""},
+					},
 					Action: task.ActionFunc(func(ctx context.Context, st *task.State, sc task.Script) error {
 						project := st.Default(fProject.Name, "").(string)
 						src := st.Default(fSrc.Name, false).(bool)
@@ -133,7 +152,13 @@ The source for the current input bus should live under %q.
 						if err != nil {
 							return err
 						}
-						return caller.Deploy(ctx, src)
+						tasks := st.Get("args").([]string)
+						opts := &DeployOptions{
+							CreateEnvironment: st.Default("create", false).(bool),
+							RunTasks:          tasks,
+							DeleteEnvironment: st.Default("delete", false).(bool),
+						}
+						return caller.Deploy(ctx, src, opts)
 					}),
 				},
 				{

@@ -21,7 +21,7 @@ func (fb *FileBus) List(ctx context.Context) ([]bus.Version, error) {
 func (fb *FileBus) Get(ctx context.Context, bv bus.Version) (*bus.Bus, error) {
 	panic("TODO")
 }
-func (fb *FileBus) Ammend(ctx context.Context, existing bus.Version, b *bus.Bus) (bus.Version, error) {
+func (fb *FileBus) Amend(ctx context.Context, existing bus.Version, b *bus.Bus) (bus.Version, error) {
 	panic("TODO")
 }
 func (fb *FileBus) Commit(ctx context.Context, b *bus.Bus) (bus.Version, error) {

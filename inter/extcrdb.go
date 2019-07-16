@@ -25,11 +25,11 @@ func (cr *CRDB) Validate(ctx context.Context, b *bus.Bus) error {
 
 // Generate and write files. Note, no file list is provided so extensions should
 // write a manafest file of some type by a well known name.
-func (cr *CRDB) Generate(ctx context.Context, writeFile ExtensionVersionWriter) error {
+func (cr *CRDB) Generate(ctx context.Context, b *bus.Bus, writeFile ExtensionVersionWriter) error {
 	return nil
 }
 
 // Read generated files and deploy to system.
-func (cr *CRDB) Deploy(ctx context.Context, readFile ExtensionVersionReader) error {
+func (cr *CRDB) Deploy(ctx context.Context, opts *DeployOptions, b *bus.Bus, readFile ExtensionVersionReader) error {
 	return nil
 }

@@ -11,3 +11,7 @@ func NewDelta(current, previous *Bus) (*DeltaBus, error) {
 func (b *Bus) NodesTopological() []*Node {
 	return nil
 }
+
+func (*DeltaBus) String() string {
+	panic("TODO")
+}

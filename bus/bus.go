@@ -43,6 +43,8 @@ type Version struct {
 	Version int64
 
 	// TODO(daniel.theophanes): This should really be a unique hash string and a sequence int64.
+	Sequence   int64
+	Identifier [64]byte
 }
 
 // NodeType defines the types for nodes.
