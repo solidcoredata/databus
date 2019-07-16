@@ -2,6 +2,9 @@ package inter
 
 import (
 	"context"
+	"io/ioutil"
+	"path/filepath"
+	"strconv"
 
 	"solidcoredata.org/src/databus/bus"
 )
@@ -12,11 +15,17 @@ func NewFileExtRW(projectRoot string) (*FileExtRW, error) {
 	return &FileExtRW{}, nil
 }
 
-type FileExtRW struct{}
+type FileExtRW struct {
+	root string
+}
 
 func (f *FileExtRW) Get(ctx context.Context, extname string, busVersion bus.Version, path string) ([]byte, error) {
-	panic("TODO")
+	path = filepath.Clean(path)
+	full := filepath.Join(f.root, "ext", strconv.FormatInt(busVersion.Sequence, 10), extname, path)
+	return ioutil.ReadFile(full)
 }
 func (f *FileExtRW) Put(ctx context.Context, extname string, busVersion bus.Version, path string, content []byte) error {
-	panic("TODO")
+	path = filepath.Clean(path)
+	full := filepath.Join(f.root, "ext", strconv.FormatInt(busVersion.Sequence, 10), extname, path)
+	return ioutil.WriteFile(full, content, 0600)
 }
