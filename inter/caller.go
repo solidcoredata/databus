@@ -52,7 +52,11 @@ func (c *SimpleCaller) Validate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		err = ext.Validate(ctx, b)
+		about, err := ext.AboutSelf(ctx)
+		if err != nil {
+			return err
+		}
+		err = ext.Validate(ctx, b.Filter(about.HandleTypes))
 		if err != nil {
 			return err
 		}
@@ -98,11 +102,15 @@ func (c *SimpleCaller) Diff(ctx context.Context, src bool) (*bus.DeltaBus, error
 		if err != nil {
 			return nil, err
 		}
-		err = ext.Validate(ctx, b1)
+		about, err := ext.AboutSelf(ctx)
 		if err != nil {
 			return nil, err
 		}
-		err = ext.Validate(ctx, b2)
+		err = ext.Validate(ctx, b1.Filter(about.HandleTypes))
+		if err != nil {
+			return nil, err
+		}
+		err = ext.Validate(ctx, b2.Filter(about.HandleTypes))
 		if err != nil {
 			return nil, err
 		}
@@ -127,7 +135,11 @@ func (c *SimpleCaller) Commit(ctx context.Context, amend bool) (bus.Version, err
 		if err != nil {
 			return bus.Version{}, err
 		}
-		err = ext.Validate(ctx, b)
+		about, err := ext.AboutSelf(ctx)
+		if err != nil {
+			return bus.Version{}, err
+		}
+		err = ext.Validate(ctx, b.Filter(about.HandleTypes))
 		if err != nil {
 			return bus.Version{}, err
 		}
@@ -163,11 +175,16 @@ func (c *SimpleCaller) Generate(ctx context.Context, src bool) error {
 		if err != nil {
 			return err
 		}
-		err = ext.Validate(ctx, b)
+		about, err := ext.AboutSelf(ctx)
 		if err != nil {
 			return err
 		}
-		err = ext.Generate(ctx, b, func(ctx context.Context, path string, content []byte) error {
+		filtered := b.Filter(about.HandleTypes)
+		err = ext.Validate(ctx, filtered)
+		if err != nil {
+			return err
+		}
+		err = ext.Generate(ctx, filtered, func(ctx context.Context, path string, content []byte) error {
 			return c.extReadWrite.Put(ctx, extName, b.Version, path, content)
 		})
 		if err != nil {
@@ -201,11 +218,16 @@ func (c *SimpleCaller) Deploy(ctx context.Context, src bool, opts *DeployOptions
 		if err != nil {
 			return err
 		}
-		err = ext.Validate(ctx, b)
+		about, err := ext.AboutSelf(ctx)
 		if err != nil {
 			return err
 		}
-		err = ext.Deploy(ctx, opts, b, func(ctx context.Context, path string) ([]byte, error) {
+		filtered := b.Filter(about.HandleTypes)
+		err = ext.Validate(ctx, filtered)
+		if err != nil {
+			return err
+		}
+		err = ext.Deploy(ctx, opts, filtered, func(ctx context.Context, path string) ([]byte, error) {
 			return c.extReadWrite.Get(ctx, extName, b.Version, path)
 		})
 		if err != nil {
