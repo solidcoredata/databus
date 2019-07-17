@@ -38,24 +38,33 @@ func NewCaller(setup CallerSetup) (*SimpleCaller, error) {
 	}, nil
 }
 
+func (c *SimpleCaller) listExt(ctx context.Context) ([]Extension, error) {
+	exts, err := c.extReg.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ret := make([]Extension, len(exts))
+	for i, extName := range exts {
+		ext, err := c.extReg.Get(ctx, extName)
+		if err != nil {
+			return nil, err
+		}
+		ret[i] = ext
+	}
+	return ret, nil
+}
+
 func (c *SimpleCaller) Validate(ctx context.Context) error {
 	b, err := c.busRead.GetBus(ctx)
 	if err != nil {
 		return err
 	}
-	exts, err := c.extReg.List(ctx)
+	exts, err := c.listExt(ctx)
 	if err != nil {
 		return err
 	}
-	for _, extName := range exts {
-		ext, err := c.extReg.Get(ctx, extName)
-		if err != nil {
-			return err
-		}
-		about, err := ext.AboutSelf(ctx)
-		if err != nil {
-			return err
-		}
+	for _, ext := range exts {
+		about := ext.AboutSelf()
 		err = ext.Validate(ctx, b.Filter(about.HandleTypes))
 		if err != nil {
 			return err
@@ -63,82 +72,65 @@ func (c *SimpleCaller) Validate(ctx context.Context) error {
 	}
 	return b.Init()
 }
-func (c *SimpleCaller) Diff(ctx context.Context, src bool) (*bus.DeltaBus, error) {
-	var err error
+
+func (c *SimpleCaller) currentPrevious(ctx context.Context, src bool) (current *bus.Bus, previous *bus.Bus, exts []Extension, err error) {
 	var b1, b2 *bus.Bus
 	if src {
 		b1, err = c.busRead.GetBus(ctx)
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 		b2, err = c.busVersion.Get(ctx, bus.Version{Sequence: 0})
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 	} else {
 		b1, err = c.busVersion.Get(ctx, bus.Version{Sequence: 0})
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 		b2, err = c.busVersion.Get(ctx, bus.Version{Sequence: -1})
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 	}
-	err = b1.Init()
+	exts, err = c.listExt(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
-	err = b2.Init()
-	if err != nil {
-		return nil, err
-	}
-	exts, err := c.extReg.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, extName := range exts {
-		ext, err := c.extReg.Get(ctx, extName)
-		if err != nil {
-			return nil, err
-		}
-		about, err := ext.AboutSelf(ctx)
-		if err != nil {
-			return nil, err
-		}
+	for _, ext := range exts {
+		about := ext.AboutSelf()
 		err = ext.Validate(ctx, b1.Filter(about.HandleTypes))
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 		err = ext.Validate(ctx, b2.Filter(about.HandleTypes))
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 	}
-	return bus.NewDelta(b1, b2)
+	return b1, b2, exts, nil
 }
+
+func (c *SimpleCaller) Diff(ctx context.Context, src bool) (*bus.DeltaBus, error) {
+	current, previous, _, err := c.currentPrevious(ctx, src)
+	if err != nil {
+		return nil, err
+	}
+	return bus.NewDelta(current, previous)
+}
+
 func (c *SimpleCaller) Commit(ctx context.Context, amend bool) (bus.Version, error) {
 	b, err := c.busRead.GetBus(ctx)
 	if err != nil {
 		return bus.Version{}, err
 	}
-	err = b.Init()
+	exts, err := c.listExt(ctx)
 	if err != nil {
 		return bus.Version{}, err
 	}
-	exts, err := c.extReg.List(ctx)
-	if err != nil {
-		return bus.Version{}, err
-	}
-	for _, extName := range exts {
-		ext, err := c.extReg.Get(ctx, extName)
-		if err != nil {
-			return bus.Version{}, err
-		}
-		about, err := ext.AboutSelf(ctx)
-		if err != nil {
-			return bus.Version{}, err
-		}
+	for _, ext := range exts {
+		about := ext.AboutSelf()
 		err = ext.Validate(ctx, b.Filter(about.HandleTypes))
 		if err != nil {
 			return bus.Version{}, err
@@ -151,41 +143,19 @@ func (c *SimpleCaller) Commit(ctx context.Context, amend bool) (bus.Version, err
 }
 
 func (c *SimpleCaller) Generate(ctx context.Context, src bool) error {
-	var err error
-	var b *bus.Bus
-	if src {
-		b, err = c.busRead.GetBus(ctx)
-	} else {
-		b, err = c.busVersion.Get(ctx, bus.Version{Sequence: 0})
-	}
-	if err != nil {
-		return err
-	}
-	err = b.Init()
+	current, previous, exts, err := c.currentPrevious(ctx, src)
 	if err != nil {
 		return err
 	}
 
-	exts, err := c.extReg.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, extName := range exts {
-		ext, err := c.extReg.Get(ctx, extName)
+	for _, ext := range exts {
+		about := ext.AboutSelf()
+		diff, err := bus.NewDelta(current.Filter(about.HandleTypes), previous.Filter(about.HandleTypes))
 		if err != nil {
 			return err
 		}
-		about, err := ext.AboutSelf(ctx)
-		if err != nil {
-			return err
-		}
-		filtered := b.Filter(about.HandleTypes)
-		err = ext.Validate(ctx, filtered)
-		if err != nil {
-			return err
-		}
-		err = ext.Generate(ctx, filtered, func(ctx context.Context, path string, content []byte) error {
-			return c.extReadWrite.Put(ctx, extName, b.Version, path, content)
+		err = ext.Generate(ctx, diff, func(ctx context.Context, path string, content []byte) error {
+			return c.extReadWrite.Put(ctx, about.Name, current.Version, path, content)
 		})
 		if err != nil {
 			return err
@@ -194,41 +164,19 @@ func (c *SimpleCaller) Generate(ctx context.Context, src bool) error {
 	return nil
 }
 func (c *SimpleCaller) Deploy(ctx context.Context, src bool, opts *DeployOptions) error {
-	var err error
-	var b *bus.Bus
-	if src {
-		b, err = c.busRead.GetBus(ctx)
-	} else {
-		b, err = c.busVersion.Get(ctx, bus.Version{Sequence: 0})
-	}
-	if err != nil {
-		return err
-	}
-	err = b.Init()
+	current, previous, exts, err := c.currentPrevious(ctx, src)
 	if err != nil {
 		return err
 	}
 
-	exts, err := c.extReg.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, extName := range exts {
-		ext, err := c.extReg.Get(ctx, extName)
+	for _, ext := range exts {
+		about := ext.AboutSelf()
+		diff, err := bus.NewDelta(current.Filter(about.HandleTypes), previous.Filter(about.HandleTypes))
 		if err != nil {
 			return err
 		}
-		about, err := ext.AboutSelf(ctx)
-		if err != nil {
-			return err
-		}
-		filtered := b.Filter(about.HandleTypes)
-		err = ext.Validate(ctx, filtered)
-		if err != nil {
-			return err
-		}
-		err = ext.Deploy(ctx, opts, filtered, func(ctx context.Context, path string) ([]byte, error) {
-			return c.extReadWrite.Get(ctx, extName, b.Version, path)
+		err = ext.Deploy(ctx, opts, diff, func(ctx context.Context, path string) ([]byte, error) {
+			return c.extReadWrite.Get(ctx, about.Name, current.Version, path)
 		})
 		if err != nil {
 			return err

@@ -26,10 +26,8 @@ func (b *Builtin) Add(ctx context.Context, exts ...Extension) error {
 
 	add := make(map[string]Extension, len(exts))
 	for _, e := range exts {
-		info, err := e.AboutSelf(ctx)
-		if err != nil {
-			return err
-		}
+		info := e.AboutSelf()
+
 		_, ok := add[info.Name]
 		if ok {
 			return fmt.Errorf("cannot add extension type %q twice", info.Name)

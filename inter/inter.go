@@ -14,17 +14,17 @@ type ExtensionAbout struct {
 
 type Extension interface {
 	// Return information what this extension can handle and do.
-	AboutSelf(ctx context.Context) (ExtensionAbout, error)
+	AboutSelf() ExtensionAbout
 
 	// Extension specific Bus validation.
 	Validate(ctx context.Context, b *bus.Bus) error
 
 	// Generate and write files. Note, no file list is provided so extensions should
 	// write a manafest file of some type by a well known name.
-	Generate(ctx context.Context, b *bus.Bus, writeFile ExtensionVersionWriter) error
+	Generate(ctx context.Context, diff *bus.DeltaBus, writeFile ExtensionVersionWriter) error
 
 	// Read generated files and deploy to system.
-	Deploy(ctx context.Context, opts *DeployOptions, b *bus.Bus, readFile ExtensionVersionReader) error
+	Deploy(ctx context.Context, opts *DeployOptions, diff *bus.DeltaBus, readFile ExtensionVersionReader) error
 }
 
 type DeployOptions struct {

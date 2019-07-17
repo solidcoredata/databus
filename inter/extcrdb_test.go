@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+
+	"solidcoredata.org/src/databus/bus"
 )
 
 // Start a server listening for SQL connections on localhost:9999.
@@ -109,6 +111,9 @@ func TestSQL(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	extcrdb := NewCRDB()
+	about := extcrdb.AboutSelf()
+
 	root := filepath.Join(testdata(), "library")
 	loader, err := NewFileBus(root)
 	if err != nil {
@@ -118,18 +123,12 @@ func TestSQL(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = b.Init()
+	delta, err := bus.NewDelta(b.Filter(about.HandleTypes), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	extcrdb := NewCRDB()
-	about, err := extcrdb.AboutSelf(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	bfilter := b.Filter(about.HandleTypes)
-	err = extcrdb.Generate(ctx, bfilter, testroot(root).verifyOutput)
+	err = extcrdb.Generate(ctx, delta, testroot(root).verifyOutput)
 	if err != nil {
 		t.Fatal(err)
 	}

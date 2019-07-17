@@ -103,7 +103,7 @@ func (fb *FileBus) Get(ctx context.Context, bv bus.Version) (*bus.Bus, error) {
 	if err != nil {
 		return nil, err
 	}
-	return bus, nil
+	return bus, bus.Init()
 }
 func (fb *FileBus) Amend(ctx context.Context, existing bus.Version, b *bus.Bus) (bus.Version, error) {
 	x := *b
@@ -149,5 +149,5 @@ func (fb *FileBus) GetBus(ctx context.Context) (*bus.Bus, error) {
 	if err != nil {
 		return nil, err
 	}
-	return bus, nil
+	return bus, bus.Init()
 }
