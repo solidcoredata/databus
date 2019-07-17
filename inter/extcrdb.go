@@ -25,6 +25,10 @@ type CRDB struct{}
 func (cr *CRDB) AboutSelf(ctx context.Context) (ExtensionAbout, error) {
 	return ExtensionAbout{
 		Name: "crdb",
+		HandleTypes: []string{
+			typeSQLDatabase,
+			typeSQLTable,
+		},
 	}, nil
 }
 

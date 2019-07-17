@@ -1,9 +1,5 @@
 package bus
 
-import (
-	"context"
-)
-
 /*
    Input reads the data bus and outputs a Bus or an error.
    Input can read previous versions of the bus as well.
@@ -48,57 +44,6 @@ type RunnerEntry struct {
 	Options map[string]string
 }
 
-type CallHeader struct {
-	Type    string // NodeTypes | Run
-	Options map[string]string
-}
-
-type CallNodeTypesRequest struct{}
-type CallNodeTypesResponse struct {
-	Errors []string
-
-	CallVersion int64
-	NodeTypes   []string
-}
-
-type CallRunRequest struct {
-	CallVersion int64
-
-	Current  *Bus
-	Previous *Bus
-	DeltaBus *DeltaBus
-}
-type CallRunFile struct {
-	Path    string // Relative path.
-	Content []byte
-}
-type CallRunResponse struct {
-	CallVersion int64
-	Errors      []string
-	Files       []CallRunFile
-}
-
-type RunStart interface {
-	NodeTypes(ctx context.Context, header *CallHeader, request *CallNodeTypesRequest) (*CallNodeTypesResponse, error)
-	Run(ctx context.Context, header *CallHeader, request *CallRunRequest) (*CallRunResponse, error)
-}
-
-type System struct {
-	Input
-	Output
-	Runner
-}
-
-type InputOptions struct {
-	// Read the bus from src.
-	Src bool
-
-	// Zero for "current" version, -1 from current version, any positive
-	// number for the exact version. Versions start at 1.
-	// Ignored if Src is true.
-	Version int64
-}
-
 // DeltaBus needs to handle the following changes:
 //  * New Node
 //  * Remove Node
@@ -141,19 +86,4 @@ type DeltaField struct {
 	Role  string
 	Side  Side
 	Field string
-}
-
-type Input interface {
-	ReadBus(ctx context.Context, opts InputOptions) (*Bus, error)
-	ListVersion(ctx context.Context) ([]Version, error)
-	ReadProject(ctx context.Context) (Project, error)
-}
-
-type Output interface {
-	WriteBus(ctx context.Context, currentBus *Bus) error
-	WriteDelta(ctx context.Context, deltaBus *DeltaBus) error
-}
-
-type Runner interface {
-	Run(ctx context.Context, project Project, currentBus *Bus, previousBus *Bus, deltaBus *DeltaBus) error
 }

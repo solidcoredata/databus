@@ -1,4 +1,4 @@
-package tool_test
+package inter
 
 import (
 	"bytes"
@@ -14,18 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kardianos/task"
 	"github.com/lib/pq"
-	"solidcoredata.org/src/databus/bus/sysfs"
-	"solidcoredata.org/src/databus/internal/tool"
 )
 
 // Start a server listening for SQL connections on localhost:9999.
 // cockroach start --insecure --listen-addr=localhost:9999 --store=type=mem,size=1GiB --logtostderr=NONE
-
-func init() {
-	sysfs.RegisterMemoryRunner("memory://run/tool/sql", &tool.SQLGenerate{}, verifyOutput)
-}
 
 func testdata() string {
 	_, fullTestFile, _, _ := runtime.Caller(0)
@@ -97,7 +90,7 @@ func verifyOutput(ctx context.Context, filename string, content []byte) error {
 	}
 
 	// Now compare the generated SQL to the golden sql.``
-	p := filepath.Join(dirFromContext(ctx), "output", filename)
+	p := filepath.Join(testdata(), "library", "output", filename)
 	// Read file at p.
 	// Compare to content.
 	golden, err := ioutil.ReadFile(p)
@@ -110,48 +103,31 @@ func verifyOutput(ctx context.Context, filename string, content []byte) error {
 	return nil
 }
 
-type ctxKeyDir struct{}
+func TestSQL(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-func dirFromContext(ctx context.Context) string {
-	return ctx.Value(ctxKeyDir{}).(string)
-}
-func dirWithContext(ctx context.Context, dir string) context.Context {
-	return context.WithValue(ctx, ctxKeyDir{}, dir)
-}
-
-func runcmd(t *testing.T, subdir []string, args []string) {
-	ctx := context.Background()
-	wd := filepath.Join(testdata(), filepath.Join(subdir...))
-	cmd := tool.BusCommand()
-	stdout := &bytes.Buffer{}
-	stderr := &bytes.Buffer{}
-
-	ctx = dirWithContext(ctx, wd)
-
-	st := &task.State{
-		Env:    map[string]string{},
-		Dir:    wd,
-		Stdout: stdout,
-		Stderr: stderr,
-		ErrorLogger: func(err error) {
-			t.Fatal(err)
-		},
-		MsgLogger: func(msg string) {
-			t.Log(msg)
-		},
-	}
-	err := task.ScriptAdd(cmd.Exec(args)).Run(ctx, st, nil)
+	loader, err := NewFileBus(filepath.Join(testdata(), "library"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stderr.Len() > 0 {
-		t.Fatal(stderr.String())
+	b, err := loader.GetBus(ctx)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if stdout.Len() > 0 {
-		t.Log(stdout.String())
+	err = b.Init()
+	if err != nil {
+		t.Fatal(err)
 	}
-}
 
-func TestSQL(t *testing.T) {
-	runcmd(t, []string{"library"}, []string{"generate", "-src"})
+	extcrdb := NewCRDB()
+	about, err := extcrdb.AboutSelf(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bfilter := b.Filter(about.HandleTypes)
+	err = extcrdb.Generate(ctx, bfilter, verifyOutput)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"solidcoredata.org/src/databus/bus/sysfs"
 	"solidcoredata.org/src/databus/inter"
 
 	"github.com/kardianos/task"
@@ -34,7 +33,7 @@ func run(ctx context.Context) error {
 	}
 
 	setupSystem := func(project string) (*inter.SimpleCaller, error) {
-		root, err := sysfs.RootFromWD(project)
+		root, err := RootFromWD(project)
 		if err != nil {
 			return nil, err
 		}
@@ -61,7 +60,7 @@ func run(ctx context.Context) error {
 The root of the data bus project is defined by a %q file.
 Tasks set to run are defined in this file as well.
 The source for the current input bus should live under %q.
-`, sysfs.ConfigFilename, filepath.Join(sysfs.InputDir, sysfs.InputFilename)),
+`, inter.ConfigFilename, filepath.Join(inter.InputDir, inter.InputFilename)),
 		Commands: []*task.Command{
 			{
 				Name:  "validate",

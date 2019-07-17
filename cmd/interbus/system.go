@@ -1,4 +1,4 @@
-package sysfs
+package main
 
 import (
 	"fmt"
@@ -6,19 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"solidcoredata.org/src/databus/bus"
+	"solidcoredata.org/src/databus/inter"
 )
-
-// NewSystem creates new FS components from the givent fs root directory.
-// The root directory can be obtained from RootFromWD.
-func NewSystem(root string) bus.System {
-	sys := bus.System{
-		Input:  NewInput(root),
-		Output: NewOutput(root),
-		Runner: NewRunner(root),
-	}
-	return sys
-}
 
 // RootFromWD starts in the current working directory and looks for the root
 // of the bus directory. If not found it returns an error.
@@ -36,7 +25,7 @@ func RootFromWD(projectRoot string) (string, error) {
 		if len(current) == 0 {
 			break
 		}
-		try := filepath.Join(current, ConfigFilename)
+		try := filepath.Join(current, inter.ConfigFilename)
 		_, err := os.Stat(try)
 		if err == nil {
 			return current, nil

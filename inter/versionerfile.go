@@ -27,7 +27,9 @@ var _ BusVersioner = &FileBus{}
 var _ BusReader = &FileBus{}
 
 func NewFileBus(projectRoot string) (*FileBus, error) {
-	return &FileBus{}, nil
+	return &FileBus{
+		root: projectRoot,
+	}, nil
 }
 
 type FileBus struct {
