@@ -49,7 +49,9 @@ func (w *waitForMsg) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
-func verifyOutput(ctx context.Context, filename string, content []byte) error {
+type testroot string
+
+func (tr testroot) verifyOutput(ctx context.Context, filename string, content []byte) error {
 	// If crdb is available, try to create the database script.
 	crdb, err := exec.LookPath("cockroach")
 	if err == nil {
@@ -90,7 +92,7 @@ func verifyOutput(ctx context.Context, filename string, content []byte) error {
 	}
 
 	// Now compare the generated SQL to the golden sql.``
-	p := filepath.Join(testdata(), "library", "output", filename)
+	p := filepath.Join(string(tr), "output", filename)
 	// Read file at p.
 	// Compare to content.
 	golden, err := ioutil.ReadFile(p)
@@ -107,7 +109,8 @@ func TestSQL(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	loader, err := NewFileBus(filepath.Join(testdata(), "library"))
+	root := filepath.Join(testdata(), "library")
+	loader, err := NewFileBus(root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +129,7 @@ func TestSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	bfilter := b.Filter(about.HandleTypes)
-	err = extcrdb.Generate(ctx, bfilter, verifyOutput)
+	err = extcrdb.Generate(ctx, bfilter, testroot(root).verifyOutput)
 	if err != nil {
 		t.Fatal(err)
 	}
