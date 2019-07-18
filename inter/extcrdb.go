@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 
 	"solidcoredata.org/src/databus/bus"
 	"solidcoredata.org/src/databus/internal/tsort"
@@ -84,9 +85,52 @@ func (cr *CRDB) Generate(ctx context.Context, delta *bus.DeltaBus, writeFile Ext
 				if i != 0 {
 					w(",")
 				}
-				fname := f.Value("name").(string)
-				ftype := f.Value("type").(string)
-				w("\n\t%s %s", fname, ftype)
+				fName := f.Value("name").(string)
+				fType := f.Value("type").(string)
+				fNull := f.Value("nullable").(bool)
+				fLength := f.Value("length").(int64)
+				fFKRaw := f.Value("fk")
+				fKey := f.Value("key").(bool)
+				fComment := f.Value("comment").(string)
+				fDisplay := f.Value("display").(string)
+				/*
+				   {Name: "name", Type: "text", Optional: false, Send: true, Recv: false}, // Database column name.
+				   {Name: "display", Type: "text", Optional: false, Send: true, Recv: false}, // Display name to default to when displaying data from this field.
+				   {Name: "type", Type: "text", Optional: false, Send: true, Recv: false}, // Type of the database field.
+				   {Name: "fk", Type: "node", Optional: true, Send: false, Recv: false},
+				   {Name: "length", Type: "int", Optional: true, Send: true, Recv: false}, // Max length in runes (text) or bytes (bytea).
+				   {Name: "nullable", Type: "bool", Optional: true, Send: false, Recv: false, Default: "false"}, // True if the column should be nullable.
+				   {Name: "key", Type: "bool", Optional: true, Send: false, Recv: false, Default: "false"}, // True if the column should be nullable.
+				   {Name: "comment", Type: "text", Optional: true, Send: false, Recv: false},
+				*/
+				if len(fComment) > 0 {
+					w("\n\t-- %s", strings.ReplaceAll(fComment, "\n", "\n\t-- "))
+				}
+				if len(fDisplay) > 0 {
+					w("\n\t-- Display: %s", fDisplay)
+				}
+				var dbType string
+				switch fType {
+				default:
+					dbType = fType
+				case "text":
+					dbType = "string"
+				}
+				w("\n\t%s %s", fName, dbType)
+				if fLength > 0 {
+					w("(%d)", fLength)
+				}
+				if fNull {
+					w(" null")
+				} else {
+					w(" not null")
+				}
+				if fKey {
+					w(" primary key")
+				}
+				if fFKRaw != nil {
+					// TODO
+				}
 			}
 			w("\n);\n")
 		}

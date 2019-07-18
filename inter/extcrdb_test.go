@@ -86,15 +86,23 @@ func (tr testroot) verifyOutput(ctx context.Context, filename string, content []
 			return fmt.Errorf("failed to ping database: %v", err)
 		}
 
+		pool.ExecContext(ctx, "drop database library;")
 		_, err = pool.ExecContext(ctx, string(content))
 		if err != nil {
-			return err
+			switch err := err.(type) {
+			case *pq.Error:
+				return fmt.Errorf("%#v\n\n%s", err, content)
+			default:
+				return fmt.Errorf("%v\n\n%s", err, content)
+			}
 		}
+
 		cmd.Process.Kill()
 	}
 
 	// Now compare the generated SQL to the golden sql.``
 	p := filepath.Join(string(tr), "output", filename)
+	pCheck := filepath.Join(string(tr), "output", "ck_"+filename)
 	// Read file at p.
 	// Compare to content.
 	golden, err := ioutil.ReadFile(p)
@@ -102,6 +110,7 @@ func (tr testroot) verifyOutput(ctx context.Context, filename string, content []
 		return err
 	}
 	if !bytes.Equal(golden, content) {
+		ioutil.WriteFile(pCheck, content, 0600)
 		return fmt.Errorf("%s does not match:\n%s", filename, content)
 	}
 	return nil

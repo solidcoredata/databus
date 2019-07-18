@@ -24,13 +24,13 @@
                 Name: "schema",
                 Properties: [
                     {Name: "name", Type: "text", Optional: false, Send: true, Recv: false}, // Database column name.
-                    {Name: "display", Type: "text", Optional: false, Send: true, Recv: false}, // Display name to default to when displaying data from this field.
+                    {Name: "display", Type: "text", Default: "", Optional: false, Send: true, Recv: false}, // Display name to default to when displaying data from this field.
                     {Name: "type", Type: "text", Optional: false, Send: true, Recv: false}, // Type of the database field.
                     {Name: "fk", Type: "node", Optional: true, Send: false, Recv: false},
-                    {Name: "length", Type: "int", Optional: true, Send: true, Recv: false}, // Max length in runes (text) or bytes (bytea).
+                    {Name: "length", Type: "int", Default: 0, Optional: true, Send: true, Recv: false}, // Max length in runes (text) or bytes (bytea).
                     {Name: "nullable", Type: "bool", Optional: true, Send: false, Recv: false, Default: "false"}, // True if the column should be nullable.
                     {Name: "key", Type: "bool", Optional: true, Send: false, Recv: false, Default: "false"}, // True if the column should be nullable.
-                    {Name: "comment", Type: "text", Optional: true, Send: false, Recv: false},
+                    {Name: "comment", Type: "text", Default: "", Optional: true, Send: false, Recv: false},
                 ],
             },
         ],
