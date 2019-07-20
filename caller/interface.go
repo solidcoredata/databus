@@ -1,5 +1,5 @@
-// Package inter is the second take on the CLI interface.
-package inter
+// Package caller is the second take on the CLI interface.
+package caller
 
 import (
 	"context"

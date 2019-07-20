@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"solidcoredata.org/src/databus/inter"
+	"solidcoredata.org/src/databus/caller"
 )
 
 // RootFromWD starts in the current working directory and looks for the root
@@ -25,7 +25,7 @@ func RootFromWD(projectRoot string) (string, error) {
 		if len(current) == 0 {
 			break
 		}
-		try := filepath.Join(current, inter.ConfigFilename)
+		try := filepath.Join(current, caller.ConfigFilename)
 		_, err := os.Stat(try)
 		if err == nil {
 			return current, nil
