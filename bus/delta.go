@@ -28,16 +28,16 @@ const (
 )
 
 type DeltaNode struct {
-	Alter Alter
-	Node  string
+	Node         string
+	PreviousName string
 }
 
 type DeltaField struct {
-	Alter Alter
-	Node  string
-	Role  string
-	Side  Side
-	Field string
+	Node         string
+	PreviousName string
+	Role         string
+	Side         Side
+	Field        string
 }
 
 func NewDelta(current, previous *Bus) (*DeltaBus, error) {
