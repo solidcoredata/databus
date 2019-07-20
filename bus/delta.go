@@ -17,11 +17,6 @@ type DeltaBus struct {
 
 type DeltaAction struct{}
 
-func (d *DeltaBus) Filter(types []string) *DeltaBus {
-	// TODO(daniel.theophanes): Filter deltabus by node types.
-	return d
-}
-
 type Alter int32
 
 const (
