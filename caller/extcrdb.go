@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"solidcoredata.org/src/databus/bus"
-	"solidcoredata.org/src/databus/internal/tsort"
 )
 
 const (
@@ -38,29 +37,11 @@ func (cr *CRDB) Validate(ctx context.Context, b *bus.Bus) error {
 	return nil
 }
 
-var _ tsort.NodeCollection = (*bussort)(&bus.Bus{})
-
-type bussort bus.Bus
-
-func (bs *bussort) Index(i int) tsort.Node {
-	return tsort.Node(bs.Nodes[i])
-}
-func (bs *bussort) Len() int {
-	return len(bs.Nodes)
-}
-func (bs *bussort) Swap(i, j int) {
-	bs.Nodes[i], bs.Nodes[j] = bs.Nodes[j], bs.Nodes[i]
-}
-
 // Generate and write files. Note, no file list is provided so extensions should
 // write a manafest file of some type by a well known name.
 func (cr *CRDB) Generate(ctx context.Context, delta *bus.DeltaBus, writeFile ExtensionVersionWriter) error {
 	b := delta.Current
 	buf := &bytes.Buffer{}
-	err := tsort.Sort((*bussort)(b))
-	if err != nil {
-		return err
-	}
 	w := func(s string, v ...interface{}) {
 		fmt.Fprintf(buf, s, v...)
 	}
@@ -129,7 +110,8 @@ func (cr *CRDB) Generate(ctx context.Context, delta *bus.DeltaBus, writeFile Ext
 					w(" primary key")
 				}
 				if fFKRaw != nil {
-					// TODO
+					fk := fFKRaw.(*bus.Node)
+					w(" references %s", fk.Role("prop").Fields[0].Value("name"))
 				}
 			}
 			w("\n);\n")

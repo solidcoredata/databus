@@ -15,29 +15,36 @@ type DeltaBus struct {
 	Actions  []DeltaAction
 }
 
-type DeltaAction struct{}
+type DeltaAction struct {
+	Alter         Alter
+	NodeCurrent   *Node
+	NodePrevious  *Node
+	FieldCurrent  *Field
+	FieldPrevious *Field
+}
 
 type Alter int32
 
 const (
 	AlterNothing Alter = iota
-	AlterAdd
-	AlterRemove
-	AlterRename
-	AlterUpdate // Only used for in DeltaField.
+	AlterNodeAdd
+	AlterNodeRemove
+	AlterNodeRename
+	AlterFieldAdd
+	AlterFieldRemove
+	AlterFieldRename
+	AlterFieldUpdate
 )
 
 type DeltaNode struct {
-	Node         string
-	PreviousName string
+	Node string
 }
 
 type DeltaField struct {
-	Node         string
-	PreviousName string
-	Role         string
-	Side         Side
-	Field        string
+	Node  string
+	Role  string
+	Side  Side
+	Field string
 }
 
 func NewDelta(current, previous *Bus) (*DeltaBus, error) {
@@ -45,11 +52,8 @@ func NewDelta(current, previous *Bus) (*DeltaBus, error) {
 		Current:  current,
 		Previous: previous,
 	}
+	// TODO(daniel.theophanes): Calculate node and field level actions.
 	return db, nil
-}
-
-func (b *Bus) NodesTopological() []*Node {
-	return nil
 }
 
 func (*DeltaBus) String() string {

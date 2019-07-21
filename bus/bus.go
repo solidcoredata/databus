@@ -110,7 +110,12 @@ func (n Node) ToNode() []string {
 	}
 	for _, r := range n.Roles {
 		for _, f := range r.Fields {
-			_ = f
+			for _, v := range f.values {
+				switch n := v.(type) {
+				case *Node:
+					ret = append(ret, n.Name)
+				}
+			}
 		}
 	}
 	return ret

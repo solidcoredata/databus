@@ -10,7 +10,22 @@ import (
 	"strconv"
 
 	"github.com/cockroachdb/apd/v2"
+	"solidcoredata.org/src/databus/internal/tsort"
 )
+
+var _ tsort.NodeCollection = (*bussort)(&Bus{})
+
+type bussort Bus
+
+func (bs *bussort) Index(i int) tsort.Node {
+	return tsort.Node(bs.Nodes[i])
+}
+func (bs *bussort) Len() int {
+	return len(bs.Nodes)
+}
+func (bs *bussort) Swap(i, j int) {
+	bs.Nodes[i], bs.Nodes[j] = bs.Nodes[j], bs.Nodes[i]
+}
 
 func (b *Bus) findNode(name string) *Node {
 	return b.nodeLookup[name]
@@ -217,6 +232,10 @@ func (b *Bus) Init() error {
 	if errs == nil {
 		b.setup = true
 		return nil
+	}
+	err := tsort.Sort((*bussort)(b))
+	if err != nil {
+		errs = errs.Append(err)
 	}
 	return errs
 }
