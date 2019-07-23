@@ -73,12 +73,13 @@ type RoleType struct {
 // Then the RoleType would define two properties: "name" and "size" and the
 // Role would define 5 Fields, each with two key value pairs.
 type Property struct {
-	Name     string
-	Type     string
-	Optional bool
-	Send     bool // Set the value in other connected nodes that have Recv == true.
-	Recv     bool
-	Default  interface{}
+	Name      string
+	Type      string
+	FieldName bool
+	Optional  bool
+	Send      bool // Set the value in other connected nodes that have Recv == true.
+	Recv      bool
+	Default   interface{}
 
 	// defaultValue is logically the same as Default, but normalized and typed.
 	defaultValue interface{}
@@ -127,8 +128,9 @@ type Role struct {
 	Name   string
 	Fields []Field // Each field must match the Node Type role properties.
 
-	fieldIDLookup map[int64]*Field
-	roleType      *RoleType
+	fieldIDLookup   map[int64]*Field
+	fieldNameLookup map[string]*Field
+	roleType        *RoleType
 }
 
 // Field defines a single "column". Each "column" is made up of one or more properties
@@ -137,6 +139,9 @@ type Field struct {
 	// The field ID only needs to be set to a non-zero value before attempting to rename a stateful field.
 	// Once set, it should not be changed. ID value should not imply order.
 	ID int64
+
+	// name of the field to bind to. Set with Property FieldName=true.
+	name string
 
 	// Bound Alias name.
 	Alias string

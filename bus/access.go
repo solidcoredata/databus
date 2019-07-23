@@ -33,10 +33,16 @@ func (b *Bus) Filter(types []string) *Bus {
 
 // Node returns a *Node by name.
 func (b *Bus) Node(name string) *Node {
+	if b == nil {
+		return nil
+	}
 	return b.nodeLookup[name]
 }
 
 func (b *Bus) NodeByType(typeName ...string) []*Node {
+	if b == nil {
+		return nil
+	}
 	ret := make([]*Node, 0, 20)
 	for _, tn := range typeName {
 		list := b.nodeByType[tn]
@@ -96,6 +102,13 @@ func (f *Field) Value(name string) interface{} {
 		panic(fmt.Errorf("property %q not present", name))
 	}
 	return v
+}
+
+func (f *Field) needUpdate(prev *Field) bool {
+	panic("TODO")
+	// for fkey, fvalue := range fc.values {
+	// 	if fkey
+	// }
 }
 
 // Node returns the associated Node to the Bind.

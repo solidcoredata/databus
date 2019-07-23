@@ -5,7 +5,7 @@
             {
                 Name: "prop",
                 Properties: [
-                    {Name: "name", Type: "text", Optional: false, Send: false, Recv: false},
+                    {Name: "name", Type: "text", FieldName: true, Optional: false, Send: false, Recv: false},
                 ],
             },
         ],
@@ -16,14 +16,14 @@
             {
                 Name: "prop",
                 Properties: [
-                    {Name: "name", Type: "text", Optional: false, Send: false, Recv: false},
+                    {Name: "name", Type: "text", FieldName: true, Optional: false, Send: false, Recv: false},
                     {Name: "database", Type: "node", Optional: false, Send: false, Recv: false},
                 ],
             },
             {
                 Name: "schema",
                 Properties: [
-                    {Name: "name", Type: "text", Optional: false, Send: true, Recv: false}, // Database column name.
+                    {Name: "name", Type: "text", FieldName: true, Optional: false, Send: true, Recv: false}, // Database column name.
                     {Name: "display", Type: "text", Default: "", Optional: false, Send: true, Recv: false}, // Display name to default to when displaying data from this field.
                     {Name: "type", Type: "text", Optional: false, Send: true, Recv: false}, // Type of the database field.
                     {Name: "fk", Type: "node", Optional: true, Send: false, Recv: false},

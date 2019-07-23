@@ -27,19 +27,20 @@ func (bs *bussort) Swap(i, j int) {
 	bs.Nodes[i], bs.Nodes[j] = bs.Nodes[j], bs.Nodes[i]
 }
 
-func (b *Bus) findNode(name string) *Node {
-	return b.nodeLookup[name]
-}
-
 // Init should populate lookup fields, as well as return
 // any basic errors such as duplicate names.
 //
 // TODO(daniel.theophanes): Add an option to ignore missing node ref names.
 // Will be useful when init a partial bus sent to runners.
 func (b *Bus) Init() error {
+	if b == nil {
+		return nil
+	}
+	if b.setup {
+		return nil
+	}
 	var errs *Errors
 
-	b.setup = false
 	b.nodeLookup = make(map[string]*Node, len(b.Nodes))
 	b.typeLookup = make(map[string]*NodeType, len(b.Types))
 	b.nodeByType = make(map[string][]*Node, len(b.Types))
@@ -80,7 +81,7 @@ func (b *Bus) Init() error {
 				}
 				// Validate property default.
 				if pr.Default != nil {
-					if value, err := validValue(pr.Type, pr.Default, b.findNode); err != nil {
+					if value, err := validValue(pr.Type, pr.Default, b.Node); err != nil {
 						errs = errs.AppendMsg("bus: node type %q role %q property %q invalid default for %v: %v", nt.Name, r.Name, pr.Name, pr.Default, err)
 						continue
 					} else {
@@ -157,6 +158,7 @@ func (b *Bus) Init() error {
 		for ri := range n.Roles {
 			r := &n.Roles[ri]
 			r.fieldIDLookup = make(map[int64]*Field, len(r.Fields))
+			r.fieldNameLookup = make(map[string]*Field, len(r.Fields))
 			r.roleType = nil
 
 			if rt, ok := nt.roleLookup[r.Name]; ok {
@@ -198,6 +200,8 @@ func (b *Bus) Init() error {
 						continue
 					}
 				}
+
+				hasFieldName := false
 				for key, value := range f.KV {
 					pr, ok := r.roleType.propNameLookup[key]
 					if !ok {
@@ -205,13 +209,43 @@ func (b *Bus) Init() error {
 						continue
 					}
 					// Validate node values.
-					if value, err := validValue(pr.Type, value, b.findNode); err != nil {
+					if value, err := validValue(pr.Type, value, b.Node); err != nil {
 						errs = errs.AppendMsg("bus: node %q role %q field index %d invalid value for type %q: %v", n.Name, r.Name, fi, key, err)
 						continue
 					} else {
 						f.values[key] = value
 					}
+					// Set FieldName.
+					if pr.FieldName {
+						if hasFieldName {
+							errs = errs.AppendMsg("bus: node %q role %q field index %d has more then one FieldName set to true", n.Name, r.Name, fi)
+							continue
+						}
+						v, ok := f.values[key].(string)
+						if !ok {
+							errs = errs.AppendMsg("bus: node %q role %q field index %d is a FieldName, but not a text field; FieldName must be text", n.Name, r.Name, fi)
+							continue
+						}
+						hasFieldName = true
+						f.name = v
+					}
 				}
+
+				if f.ID > 0 {
+					if _, ok := r.fieldIDLookup[f.ID]; ok {
+						errs = errs.AppendMsg("bus: node %q role %q field index %d has duplicate field ID %d", n.Name, r.Name, fi, f.ID)
+						continue
+					}
+					r.fieldIDLookup[f.ID] = f
+				}
+				if len(f.name) > 0 {
+					if _, ok := r.fieldNameLookup[f.name]; ok {
+						errs = errs.AppendMsg("bus: node %q role %q field index %d has duplicate field name %q", n.Name, r.Name, fi, f.name)
+						continue
+					}
+					r.fieldNameLookup[f.name] = f
+				}
+
 				for _, pr := range r.roleType.propNameLookup {
 					_, found := f.values[pr.Name]
 					if found {
@@ -229,15 +263,15 @@ func (b *Bus) Init() error {
 			}
 		}
 	}
-	if errs == nil {
-		b.setup = true
-		return nil
+	if errs != nil {
+		return errs
 	}
 	err := tsort.Sort((*bussort)(b))
 	if err != nil {
-		errs = errs.Append(err)
+		return err
 	}
-	return errs
+	b.setup = true
+	return nil
 }
 
 // validType checks that the type name is a valid type.
