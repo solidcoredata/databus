@@ -45,79 +45,203 @@ func (cr *CRDB) Generate(ctx context.Context, delta *bus.DeltaBus, writeFile Ext
 	w := func(s string, v ...interface{}) {
 		fmt.Fprintf(buf, s, v...)
 	}
-	for _, n := range b.Nodes {
+	encodeFieldAttr := func(f *bus.Field) {
+		fName := f.Name()
+		fType := f.Value("type").(string)
+		fNull := f.Value("nullable").(bool)
+		fLength := f.Value("length").(int64)
+		fFKRaw := f.Value("fk")
+		fKey := f.Value("key").(bool)
+
+		var dbType string
+		switch fType {
+		default:
+			dbType = fType
+		case "text":
+			dbType = "string"
+		}
+		w("%s %s", fName, dbType)
+		if fLength > 0 {
+			w("(%d)", fLength)
+		}
+		if fNull {
+			w(" null")
+		} else {
+			w(" not null")
+		}
+		if fKey {
+			w(" primary key")
+		}
+		if fFKRaw != nil {
+			fk := fFKRaw.(*bus.Node)
+			w(" references %s", fk.Role("prop").Fields[0].Value("name"))
+		}
+	}
+	encodeField := func(f *bus.Field) {
+		fComment := f.Value("comment").(string)
+		fDisplay := f.Value("display").(string)
+
+		if len(fComment) > 0 {
+			w("\n\t-- %s", strings.ReplaceAll(fComment, "\n", "\n\t-- "))
+		}
+		if len(fDisplay) > 0 {
+			w("\n\t-- Display: %s", fDisplay)
+		}
+		w("\n\t")
+		encodeFieldAttr(f)
+	}
+	createNode := func(n *bus.Node) error {
 		switch n.Type {
 		default:
 			return fmt.Errorf("unknown type: %q", n.Type)
 		case typeSQLDatabase:
 			prop := n.Role("prop").Fields[0]
-			name := prop.Value("name").(string)
+			name := prop.Name()
 			w("create database %[1]s;\nset database = %[1]s;\n\n", name)
 		case typeSQLTable:
-			// TODO(daniel.theophanes): Also add in nullable, length limits, primary keys, and family.
 			prop := n.Role("prop").Fields[0]
-			name := prop.Value("name")
+			name := prop.Name()
 			db := prop.Value("database").(*bus.Node)
 			_ = db
 
 			sch := n.Role("schema")
 			w("create table %s (", name)
-			for i, f := range sch.Fields {
+			for i := range sch.Fields {
 				if i != 0 {
 					w(",")
 				}
-				fName := f.Value("name").(string)
-				fType := f.Value("type").(string)
-				fNull := f.Value("nullable").(bool)
-				fLength := f.Value("length").(int64)
-				fFKRaw := f.Value("fk")
-				fKey := f.Value("key").(bool)
-				fComment := f.Value("comment").(string)
-				fDisplay := f.Value("display").(string)
-				/*
-				   {Name: "name", Type: "text", Optional: false, Send: true, Recv: false}, // Database column name.
-				   {Name: "display", Type: "text", Optional: false, Send: true, Recv: false}, // Display name to default to when displaying data from this field.
-				   {Name: "type", Type: "text", Optional: false, Send: true, Recv: false}, // Type of the database field.
-				   {Name: "fk", Type: "node", Optional: true, Send: false, Recv: false},
-				   {Name: "length", Type: "int", Optional: true, Send: true, Recv: false}, // Max length in runes (text) or bytes (bytea).
-				   {Name: "nullable", Type: "bool", Optional: true, Send: false, Recv: false, Default: "false"}, // True if the column should be nullable.
-				   {Name: "key", Type: "bool", Optional: true, Send: false, Recv: false, Default: "false"}, // True if the column should be nullable.
-				   {Name: "comment", Type: "text", Optional: true, Send: false, Recv: false},
-				*/
-				if len(fComment) > 0 {
-					w("\n\t-- %s", strings.ReplaceAll(fComment, "\n", "\n\t-- "))
-				}
-				if len(fDisplay) > 0 {
-					w("\n\t-- Display: %s", fDisplay)
-				}
-				var dbType string
-				switch fType {
-				default:
-					dbType = fType
-				case "text":
-					dbType = "string"
-				}
-				w("\n\t%s %s", fName, dbType)
-				if fLength > 0 {
-					w("(%d)", fLength)
-				}
-				if fNull {
-					w(" null")
-				} else {
-					w(" not null")
-				}
-				if fKey {
-					w(" primary key")
-				}
-				if fFKRaw != nil {
-					fk := fFKRaw.(*bus.Node)
-					w(" references %s", fk.Role("prop").Fields[0].Value("name"))
-				}
+				encodeField(&sch.Fields[i])
 			}
 			w("\n);\n")
 		}
+		return nil
+
 	}
-	return writeFile(ctx, "schema.sql", buf.Bytes())
+	for i := range b.Nodes {
+		err := createNode(&b.Nodes[i])
+		if err != nil {
+			return err
+		}
+	}
+	err := writeFile(ctx, "schema.sql", buf.Bytes())
+	if err != nil {
+		return err
+	}
+	buf.Reset()
+
+	// w("begin transaction;\n")
+
+	for _, alter := range delta.Actions {
+		switch alter.Alter {
+		default:
+			return fmt.Errorf("unknown delta alter: %v", alter.Alter)
+		case bus.AlterNothing:
+			// Nothing.
+		case bus.AlterScript:
+			w("\n%s\n", alter.Script)
+		case bus.AlterNodeAdd:
+			err := createNode(alter.NodeCurrent)
+			if err != nil {
+				return err
+			}
+		case bus.AlterNodeRemove:
+			n := alter.NodePrevious
+			switch n.Type {
+			default:
+				return fmt.Errorf("unknown type: %q", n.Type)
+			case typeSQLDatabase:
+				prop := n.Role("prop").Fields[0]
+				name := prop.Name()
+				w("drop database %[1]s;\n", name)
+			case typeSQLTable:
+				prop := n.Role("prop").Fields[0]
+				name := prop.Name()
+
+				w("drop table %s;\n", name)
+			}
+		case bus.AlterNodeRename:
+			n := alter.NodePrevious
+			nTo := alter.NodeCurrent
+			switch n.Type {
+			default:
+				return fmt.Errorf("unknown type: %q", n.Type)
+			case typeSQLDatabase:
+				prop := n.Role("prop").Fields[0]
+				name := prop.Name()
+				propTo := nTo.Role("prop").Fields[0]
+				nameTo := propTo.Name()
+				w("alter database %s rename to %s;\n", name, nameTo)
+			case typeSQLTable:
+				prop := n.Role("prop").Fields[0]
+				name := prop.Name()
+				propTo := nTo.Role("prop").Fields[0]
+				nameTo := propTo.Name()
+
+				w("alter table %s rename to %s;\n", name, nameTo)
+			}
+		case bus.AlterFieldAdd:
+			n := alter.NodeCurrent
+			switch n.Type {
+			default:
+				return fmt.Errorf("unknown type: %q", n.Type)
+			case typeSQLDatabase:
+				// Nothing.
+			case typeSQLTable:
+				prop := n.Role("prop").Fields[0]
+				name := prop.Name()
+
+				w("alter table %s add column", name)
+				encodeFieldAttr(alter.FieldCurrent)
+				w(";\n")
+			}
+		case bus.AlterFieldRemove:
+			n := alter.NodeCurrent
+			switch n.Type {
+			default:
+				return fmt.Errorf("unknown type: %q", n.Type)
+			case typeSQLDatabase:
+				// Nothing.
+			case typeSQLTable:
+				prop := n.Role("prop").Fields[0]
+				name := prop.Name()
+				fName := alter.FieldPrevious.Name()
+
+				w("alter table %s drop column %s;\n", name, fName)
+			}
+		case bus.AlterFieldRename:
+			n := alter.NodeCurrent
+			switch n.Type {
+			default:
+				return fmt.Errorf("unknown type: %q", n.Type)
+			case typeSQLDatabase:
+				w("alter database %s rename to %s;\n", alter.FieldPrevious.Name(), alter.FieldCurrent.Name())
+			case typeSQLTable:
+				prop := n.Role("prop").Fields[0]
+				name := prop.Value("name")
+
+				w("alter table %s rename %s to %s;\n", name, alter.FieldPrevious.Name(), alter.FieldCurrent.Name())
+			}
+		case bus.AlterFieldUpdate:
+			n := alter.NodeCurrent
+			switch n.Type {
+			default:
+				return fmt.Errorf("unknown type: %q", n.Type)
+			case typeSQLDatabase:
+				// Nothing.
+			case typeSQLTable:
+				prop := n.Role("prop").Fields[0]
+				name := prop.Value("name")
+
+				w("alter table %s alter column ", name)
+				encodeFieldAttr(alter.FieldCurrent)
+				w(";\n")
+			}
+		}
+	}
+
+	// w("commit transaction;\n")
+
+	return writeFile(ctx, "alter.sql", buf.Bytes())
 }
 
 // Read generated files and deploy to system.

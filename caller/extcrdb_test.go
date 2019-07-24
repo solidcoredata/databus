@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -127,7 +128,7 @@ func TestSQL(t *testing.T) {
 			// Read file at p.
 			// Compare to content.
 			golden, err := ioutil.ReadFile(p)
-			if err != nil {
+			if err != nil && !os.IsNotExist(err) {
 				t.Fatal(err)
 			}
 			if !bytes.Equal(golden, content) {

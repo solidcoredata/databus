@@ -104,11 +104,18 @@ func (f *Field) Value(name string) interface{} {
 	return v
 }
 
+func (f *Field) Name() string {
+	return f.name
+}
+
 func (f *Field) needUpdate(prev *Field) bool {
-	panic("TODO")
-	// for fkey, fvalue := range fc.values {
-	// 	if fkey
-	// }
+	// TODO(daniel.theophanes): This is probably overly simple, but may work for now.
+	for fkey, fvalue := range f.values {
+		if prev.values[fkey] != fvalue {
+			return true
+		}
+	}
+	return false
 }
 
 // Node returns the associated Node to the Bind.
