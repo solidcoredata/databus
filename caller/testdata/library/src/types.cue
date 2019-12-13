@@ -1,6 +1,6 @@
 package bus
 
-types :: [
+Types: [
 	{
 		Name: "solidcoredata.org/t/db/database"
 		Roles: [
