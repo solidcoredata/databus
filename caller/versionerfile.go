@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	InputFilename  = "bus.jsonnet"
-	ConfigFilename = "scd.jsonnet"
+	InputFilename  = "bus.cue"
+	ConfigFilename = "scd.cue"
 	InputDir       = "src"
 
 	versionFilename = "bus.json"

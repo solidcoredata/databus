@@ -7,12 +7,16 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"path/filepath"
+    "path/filepath"
+    "errors"
 	"strings"
 
 	"solidcoredata.org/src/databus/bus"
 
-	"github.com/google/go-jsonnet"
+    "github.com/google/go-jsonnet"
+    "cuelang.org/go/cue/load"
+    cueerrors "cuelang.org/go/cue/errors"
+    "cuelang.org/go/cue"
 )
 
 func Decode(ctx context.Context, p string, v interface{}) error {
@@ -50,7 +54,22 @@ func Decode(ctx context.Context, p string, v interface{}) error {
 		if err != nil {
 			return fmt.Errorf("bus/load: for %q %v", p, err)
 		}
-		return nil
+        return nil
+    case ".cue":
+        dir, _ := filepath.Split(p)
+
+        ii := load.Instances(nil, &load.Config{
+            Dir: dir,
+        })
+
+        instance := cue.Merge(cue.Build(ii)...)
+        
+        if instance.Err != nil {
+           msg := cueerrors.Details(instance.Err, nil )
+            return errors.New(msg)
+        }
+
+        return instance.Value().Decode(v)
 	}
 }
 
