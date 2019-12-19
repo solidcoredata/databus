@@ -51,7 +51,7 @@ db :: [
 			{
 				Name: "schema"
 				Fields: [
-					{KV: {name: "id", key:          true, type:      "int"}},
+					{KV: {name: "id", type:         "int", key:      true}},
 					{KV: {name: "name", type:       "text", length:  1000}},
 					{KV: {name: "genre", type:      "int", nullable: true, fk: "app1.coredata.biz/n/table/genre"}},
 					{KV: {name: "page_count", type: "int", nullable: true}},
