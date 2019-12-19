@@ -1,7 +1,12 @@
 package library
 
+import (
+	"strings"
+)
+
 Table :: {
-	name: string
+	name:  string
+	alias: string | *strings.Split(name, "")[0]
 	altname: [...string]
 	tags: [TagName=string]:      _
 	columns: [FieldName=string]: Field & {
@@ -78,6 +83,7 @@ tables: books: audit & softdelete & {
 		bookname: {order: 2, type: T.text, length: 400}
 		pages: {order: 3, type: T.int}
 		genre: {order: 4, type: T.int, fk: "genre.id"}
+		published: {order: 5, type: T.bool}
 	}
 }
 
@@ -92,3 +98,72 @@ tables: genre: softdelete & {
 // TODO(daniel.theophanes): Define named portals, each with a set of hierarchical roles and per table accessors.
 // TODO(daniel.theophanes): Define UI that can connect to tables.
 // TODO(daniel.theophanes): Define query syntax for select and query shaping.
+
+Portal :: {
+	name: string
+	roles: [RoleName=string]:   uint
+	tables: [TableName=string]: PortalTable
+}
+
+P :: {
+	R: 4
+	I: 2
+	D: 1
+}
+
+PortalTable :: {
+	name: string
+	require: [Role=uint]: [Permission=uint & <=7]: true | {
+		vars: [...string]
+		query: string
+	}
+	// TODO(daniel.theophanes): Add in mandatory queries for a given role that will check permission to access.
+}
+
+portals: [PortalName=string]: {
+	name: PortalName
+}
+portals: public: {
+	roles: anonymous: 1
+	tables: books: {
+		require: "\(roles.anonymous)": {
+			"\(P.R)": {
+				vars: []
+				query: "b.published == true"
+			}
+		}
+	}
+}
+portals: admin: {
+	roles: superadmin: 99
+	roles: admin:      10
+	roles: ro:         1
+	tables: books: {
+		require: "\(roles.superadmin)": {
+			"\(P.R)": true
+			"\(P.I)": true
+			"\(P.D)": {
+				vars: ["account"]
+				query: "b.published == false"
+			}
+		}
+	}
+}
+
+// NOTE(daniel.theophanes): I think it is highly likely that these query definitions won't work.
+Query :: {
+	name:  string
+	parts: _
+}
+
+queries: joina: Query & {
+	name: "joina"
+	parts: {
+		a: {
+			from: {
+				b: {table: "books"}
+				g: {table: "genre", on: "g.id = b.genre"}
+			}
+		}
+	}
+}
