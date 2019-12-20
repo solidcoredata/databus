@@ -72,6 +72,7 @@ audit :: Table & {
 softdelete :: Table & {
 	tags: softdelete: true
 	columns: {
+        // TODO(daniel.theophanes): add in a query clause that addes "deleted == false" unless ".deleted == true" and and role has RH.
 		deleted: {order: 8000, type: T.bool}
 	}
 }
@@ -106,14 +107,16 @@ Portal :: {
 }
 
 P :: {
-	R: 4
-	I: 2
-	D: 1
+	RH: 16 // ReadHistory (Allows viewing soft deleted and history values.)
+	R: 8  // Read
+	I: 4  // Insert
+    U: 2  // Update
+	D: 1  // Delete (soft and hard)
 }
 
 PortalTable :: {
 	name: string
-	require: [Role=uint]: [Permission=uint & <=7]: true | {
+	require: [Role=uint]: [Permission=uint & < 32]: true | {
 		vars: [...string]
 		query: string
 	}
@@ -142,6 +145,7 @@ portals: admin: {
 		require: "\(roles.superadmin)": {
 			"\(P.R)": true
 			"\(P.I)": true
+			"\(P.U)": true
 			"\(P.D)": {
 				vars: ["account"]
 				query: "b.published == false"
@@ -150,7 +154,7 @@ portals: admin: {
 	}
 }
 
-// NOTE(daniel.theophanes): I think it is highly likely that these query definitions won't work.
+// NOTE(daniel.theophanes): These queries are mostly for thinking about.
 Query :: {
 	name:  string
 	parts: _
@@ -159,11 +163,43 @@ Query :: {
 queries: joina: Query & {
 	name: "joina"
 	parts: {
-		a: {
-			from: {
-				b: {table: "books"}
-				g: {table: "genre", on: "g.id = b.genre"}
-			}
-		}
+        // TODO(daniel.theophanes): determine different join types (arity, inner join, cross join, left join) syntax.
+        // TODO(daniel.theophanes): determine how to specify joins columns manually.
+		SimpleSelect: """
+            from books b
+            from genre g
+            and b.published == true
+            select b.id, b.bookname
+            select genrename = g.name
+            // "and b.deleted == false" is automatically added unless otherwise specified.
+        """
+		SimpleInsert: """
+            from books b
+            and b.id == 12 // Duplicate this row
+            // "and b.deleted == false" is automatically added unless otherwise specified.
+            insert b
+            set bookname = b.bookname
+            set pages = b.pages
+            set genre = .genre // This is an input parameter.
+            set published = false
+        """
+		SimpleUpdate: """
+            from books b
+            and b.id == 12 // Update this row
+            // "and b.deleted == false" is automatically added unless otherwise specified.
+            update b
+            set pages = .pages // Set pages to a new value from an input parameter.
+        """
+		SimpleDelete: """
+            from books b
+            and b.id == 12 // Delete this row
+            // "and b.deleted == false" is automatically added unless otherwise specified.
+            delete b
+        """
+
+        // General pattern for queries will be to name query parts, then reference
+        // other query query parts from the from clause like any other table.
+        // This make essetnally is a combination of table variables and CTEs,
+        // implementations may use neither, either, or both.
 	}
 }
