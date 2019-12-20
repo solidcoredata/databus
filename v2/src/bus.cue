@@ -201,5 +201,63 @@ queries: joina: Query & {
         // other query query parts from the from clause like any other table.
         // This make essetnally is a combination of table variables and CTEs,
         // implementations may use neither, either, or both.
+        //
+        // Need a simple syntax to assign columns from one query part to
+        // the input parameters of another referenced query part.
+
+		SelectGenre: """
+            from genre g
+            and g.id = .genre
+            select genrename = g.name
+        """
+		SelectBook: """
+            from books b
+            from SelectGenre sg
+            and b.published == true
+            and b.genre == sg.genre
+            select b.id, b.bookname
+            select sg.genrename
+        """
+        // or
+		SelectGenre: """
+            from genre g
+            and g.id = .genre
+            select genrename = g.name
+        """
+		SelectBook: """
+            from books b
+            and b.published == true
+            and exists ( // Restrict to a sub-query.
+                from SelectGenre sg
+                and sg.genre = b.genre
+                and sg.genrename = 'History'
+            )
+            select b.id, b.bookname
+        """
+        // This also has the effect that each table is automatically named,
+        // which is also desirable. Lastly, perhaps a ":" vs "::" distinction
+        // could be made so that "::" is a "view" and ":" is an output.
+
+
+		FullExample: """
+            Query1:
+            from books b
+            and b.published == true
+            select b.id, b.bookname
+
+            ViewA::
+            from books b
+            and b.published == .published
+            select b.genre
+
+            Query2:
+            from genre g
+            select g.*
+            and exists (
+                from ViewA v
+                and v.genre = g.id
+                and v.published = 1
+            )
+        """
 	}
 }
