@@ -2,58 +2,65 @@
 
 -- setup.scd --
 
-database.library: create
+create database.library
 
 -- db.scd --
 
-context: database.library
+context database.library
 
-portal.public: create
-portal.admin: create
+create portal.public
+create portal.admin
 
-table.books: create
+create table.books
 
-table.books.tags: [softdelete, audit]
-table.books.columns: table
-name   | type | default |   key   |  length | fk
-id    |  int  | serial |  key    | -
-name   | text |  -  | -    |   1000
-pages |  int  |  -  | -    |   -
-genre | int | - | - | - | genre.id
-published | bool | false
+set table.books.tags array(softdelete, audit)
+set table.books.columns table(
+    name   | type | default |   key   |  length | fk
+    id    |  int  | serial |  key    | -
+    name   | text |  -  | -    |   1000
+    pages |  int  |  -  | -    |   -
+    genre | int | - | - | - | genre.id
+    published | bool | false
+)
 
-table.books.indices: table
-name       |    index       |   include | where
-pagelength |   pages, genre | id | deleted == 0
-genre      |    genre       | id | deleted == 0
+set table.books.indices table (
+    name       |    index       |   include | where
+    pagelength |   pages, genre | id | deleted == 0
+    genre      |    genre       | id | deleted == 0
+)
 
-table.genre: create
+create table.genre
 
-table.genre.tags: [softdelete, audit]
+set table.genre.tags array(softdelete, audit)
 
-tags.softdelete.columns: table
-name | type | default | softdelete
-deleted | bool | false | softdelete
+set tags.softdelete.columns table(
+    name | type | default | softdelete
+    deleted | bool | false | softdelete
+)
 
-tags.audit.columns: table
-name | type | default
-time_created | datetimez | time.now()
-account_created | int | or(.account, 0)
-time_updated | datetimez | time.now()
-account_updated | int | or(.account, 0)
+set tags.audit.columns table(
+    name | type | default
+    time_created | datetimez | time.now()
+    account_created | int | or(.account, 0)
+    time_updated | datetimez | time.now()
+    account_updated | int | or(.account, 0)
+)
 
-tags.audit.triggers: table
-name | on | do
-audit_update | update | update; set time_updated = time.now(); set account_updated = or(.account, 0)
+set tags.audit.triggers table(
+    name | on | do
+    audit_update | update | update; set time_updated = time.now(); set account_updated = or(.account, 0)
+)
 
-tags.audit&softdelete.columns: table
-name | type | default | nullable
-time_deleted | datetimez | - | nullable
-account_deleted | int | - | nullable
+set tags.audit&softdelete.columns table(
+    name | type | default | nullable
+    time_deleted | datetimez | - | nullable
+    account_deleted | int | - | nullable
+)
 
-tags.audit&softdelete.triggers: table
-name | on | do
-audit_softdelete_delete | delete | update; set deleted = 1; set time_deleted = time.now(); set account_deleted = or(.account, 0)
+set tags.audit&softdelete.triggers table(
+    name | on | do
+    audit_softdelete_delete | delete | update; set deleted = 1; set time_deleted = time.now(); set account_deleted = or(.account, 0)
+)
 
 // TODO(daniel.theophanes): Add ability to add history "sub-tables".
 // Functionally this would entail a table having a related sub-table.
@@ -70,28 +77,31 @@ audit_softdelete_delete | delete | update; set deleted = 1; set time_deleted = t
 
 // TODO(daniel.theophanes): determine the best way to inject "deleted == false", unless some role is allowed to and includeds ".show_deleted == true".
 
-context: database.library.portal.public
+context database.library.portal.public
 
-roles: table
-name | level
-anon | 1
+set roles table(
+    name | level
+    anon | 1
+)
 
 // Specify what columns may be read, and what where clauses must be used when selecting rows.
-table.books.require: table
-role | permission | where
-anon | S          | and b.published == true
+set table.books.require table(
+    role | permission | where
+    anon | S          | and b.published == true
+)
 
-table.books.columns: table
-role | permission | where
-name | S          | 
-pagelength | S    | 
+set table.books.columns table(
+    role | permission | where
+    name | S          | 
+    pagelength | S    | 
+)
 
+set table.genre.require table(
+    role | permission | where
+    anon | S          | and (from books b; and b.genre == g.id;) // Ensure at least one (published) book has the genre.
+)
 
-table.genre.require: table
-role | permission | where
-anon | S          | and (from books b; and b.genre == g.id;) // Ensure at least one (published) book has the genre.
-
-table.genre.columns: table
-role | permission | where
-name | S          | 
-
+set table.genre.columns table (
+    role | permission | where
+    name | S          | 
+)
