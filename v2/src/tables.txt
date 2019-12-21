@@ -91,9 +91,9 @@ set table.books.require table(
 )
 
 set table.books.columns table(
-    role | permission | where
-    name | S          | 
-    pagelength | S    | 
+    role | column | permission | where
+    anon | name | S          | 
+    anon | pagelength | S    | 
 )
 
 set table.genre.require table(
@@ -102,6 +102,6 @@ set table.genre.require table(
 )
 
 set table.genre.columns table (
-    role | permission | where
-    name | S          | 
+    role | column | permission | where
+    anon | name   | S          | 
 )
