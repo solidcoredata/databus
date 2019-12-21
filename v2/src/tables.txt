@@ -68,13 +68,30 @@ audit_softdelete_delete | delete | update; set deleted = 1; set time_deleted = t
 //  I: Insert
 //  S: Select
 
+// TODO(daniel.theophanes): determine the best way to inject "deleted == false", unless some role is allowed to and includeds ".show_deleted == true".
+
 context: database.library.portal.public
 
 roles: table
 name | level
 anon | 1
 
-// TODO(daniel.theophanes): Specify what columns may be read, and what where clauses must be used when selecting rows.
+// Specify what columns may be read, and what where clauses must be used when selecting rows.
 table.books.require: table
+role | permission | where
+anon | S          | and b.published == true
 
+table.books.columns: table
+role | permission | where
+name | S          | 
+pagelength | S    | 
+
+
+table.genre.require: table
+role | permission | where
+anon | S          | and (from books b; and b.genre == g.id;) // Ensure at least one (published) book has the genre.
+
+table.genre.columns: table
+role | permission | where
+name | S          | 
 
