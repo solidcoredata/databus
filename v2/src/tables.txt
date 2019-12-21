@@ -1,5 +1,80 @@
 // This is a testing ground for table definitions.
 
-table: books: {
+-- setup.scd --
 
-}
+database.library: create
+
+-- db.scd --
+
+context: database.library
+
+portal.public: create
+portal.admin: create
+
+table.books: create
+
+table.books.tags: [softdelete, audit]
+table.books.columns: table
+name   | type | default |   key   |  length | fk
+id    |  int  | serial |  key    | -
+name   | text |  -  | -    |   1000
+pages |  int  |  -  | -    |   -
+genre | int | - | - | - | genre.id
+published | bool | false
+
+table.books.indices: table
+name       |    index       |   include | where
+pagelength |   pages, genre | id | deleted == 0
+genre      |    genre       | id | deleted == 0
+
+table.genre: create
+
+table.genre.tags: [softdelete, audit]
+
+tags.softdelete.columns: table
+name | type | default | softdelete
+deleted | bool | false | softdelete
+
+tags.audit.columns: table
+name | type | default
+time_created | datetimez | time.now()
+account_created | int | or(.account, 0)
+time_updated | datetimez | time.now()
+account_updated | int | or(.account, 0)
+
+tags.audit.triggers: table
+name | on | do
+audit_update | update | update; set time_updated = time.now(); set account_updated = or(.account, 0)
+
+tags.audit&softdelete.columns: table
+name | type | default | nullable
+time_deleted | datetimez | - | nullable
+account_deleted | int | - | nullable
+
+tags.audit&softdelete.triggers: table
+name | on | do
+audit_softdelete_delete | delete | update; set deleted = 1; set time_deleted = time.now(); set account_deleted = or(.account, 0)
+
+// TODO(daniel.theophanes): Add ability to add history "sub-tables".
+// Functionally this would entail a table having a related sub-table.
+// This might be in the form of an audit table (showing history and effective date).
+// This might be in the form of a view that always takes an effective date, and the sub-table holds the data.
+
+-- portal_public.scd --
+
+// Permissions:
+//  D: Delete
+//  U: Update
+//  I: Insert
+//  S: Select
+
+context: database.library.portal.public
+
+roles: table
+name | level
+anon | 1
+
+// TODO(daniel.theophanes): Specify what columns may be read, and what where clauses must be used when selecting rows.
+table.books.require: table
+
+

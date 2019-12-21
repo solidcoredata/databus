@@ -187,7 +187,7 @@ queries: joina: Query & {
             from books b
             and b.id == 12 // Update this row
             // "and b.deleted == false" is automatically added unless otherwise specified.
-            update b
+            update b // or just "update", which would refer to "from books b".
             set pages = .pages // Set pages to a new value from an input parameter.
         """
 		SimpleDelete: """
