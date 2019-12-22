@@ -1,5 +1,19 @@
 // This is a testing ground for table definitions.
 
+verbs:
+create <identifier>
+context <identifier>
+set <identifier> <value>
+
+value: array(a, b, c, ...)
+value: table(
+    headerA | headerB
+    value1A | vlaue1B
+    value2A | value2B
+)
+
+// Comment to end of line. No multi-line comments yet.
+
 -- setup.scd --
 
 create database.library
@@ -34,8 +48,22 @@ create table.genre
 set table.genre.tags array(softdelete, audit)
 
 set tags.softdelete.columns table(
-    name | type | default | softdelete
-    deleted | bool | false | softdelete
+    name | type | default
+    deleted | bool | false
+)
+
+set tags.softdelete.columns table(
+    name | type | default
+    deleted | bool | false
+)
+
+set tags.softdelete.queries table(
+    name | query
+    softdelete_filter | or(and(.show_deleted, .show_deleted == true), deleted == false)
+)
+set tags.softdelete.triggers table(
+    name | on | do
+    audit_softdelete_delete | delete | cancel delete; update; set deleted = 1;
 )
 
 set tags.audit.columns table(
@@ -59,7 +87,7 @@ set tags.audit&softdelete.columns table(
 
 set tags.audit&softdelete.triggers table(
     name | on | do
-    audit_softdelete_delete | delete | update; set deleted = 1; set time_deleted = time.now(); set account_deleted = or(.account, 0)
+    audit_softdelete_delete | delete | update; set time_deleted = time.now(); set account_deleted = or(.account, 0)
 )
 
 // TODO(daniel.theophanes): Add ability to add history "sub-tables".
@@ -75,8 +103,6 @@ set tags.audit&softdelete.triggers table(
 //  I: Insert
 //  S: Select
 
-// TODO(daniel.theophanes): determine the best way to inject "deleted == false", unless some role is allowed to and includeds ".show_deleted == true".
-
 context database.library.portal.public
 
 set roles table(
@@ -86,22 +112,57 @@ set roles table(
 
 // Specify what columns may be read, and what where clauses must be used when selecting rows.
 set table.books.require table(
-    role | permission | where
+    role | permission | query
     anon | S          | and b.published == true
 )
 
 set table.books.columns table(
     role | column | permission | where
+    anon | id   | S |
     anon | name | S          | 
     anon | pagelength | S    | 
 )
 
 set table.genre.require table(
-    role | permission | where
+    role | permission | query
     anon | S          | and (from books b; and b.genre == g.id;) // Ensure at least one (published) book has the genre.
 )
 
 set table.genre.columns table (
-    role | column | permission | where
+    role | column | permission | query
     anon | name   | S          | 
+)
+
+-- portal_admin.scd --
+
+// Permissions:
+//  D: Delete
+//  U: Update
+//  I: Insert
+//  S: Select
+
+context database.library.portal.public
+
+set roles table(
+    name | level
+    admin | 10
+)
+
+// Specify what columns may be read, and what where clauses must be used when selecting rows.
+set table.books.require table(
+    role | permission | query
+    admin | *   |
+)
+set table.books.columns table(
+    role  | column | permission | where
+    admim | * | *       | 
+)
+
+set table.genre.require table(
+    role | permission | query
+    admin | *   |
+)
+set table.genre.columns table(
+    role  | column | permission | where
+    admim | * | *       | 
 )
