@@ -65,14 +65,14 @@ type file struct {
 	name string
 }
 type pos struct {
+	File     *file
 	Line     int64 // line in input (starting at 1)
 	LineRune int64 // rune in line (starting at 1)
 	Byte     int64 // byte in input (starting at 0)
 }
 type state struct {
-	file *file
-	buf  *bufio.Reader
-	pos  pos
+	buf *bufio.Reader
+	pos pos
 
 	nextBuf []rune
 	out     *strings.Builder
@@ -84,16 +84,16 @@ type token struct {
 }
 
 func (s *state) load(name string, r io.Reader) error {
-	s.file = &file{name: name}
 	s.buf = bufio.NewReader(r)
 	s.out = &strings.Builder{}
 	s.pos = pos{
+		File:     &file{name: name},
 		Line:     1,
 		LineRune: 1,
 		Byte:     0,
 	}
 
-	err := s.runChoice()
+	err := s.runLexer()
 	if err == io.EOF {
 		return nil
 	}
@@ -103,7 +103,7 @@ func (s *state) finalize() error {
 	return nil
 }
 
-func parse(fr FileReader) (*state, error) {
+func ParseFile(fr FileReader) (*state, error) {
 	s := &state{}
 	err := fr.Load(s.load)
 	if err != nil {
@@ -112,18 +112,50 @@ func parse(fr FileReader) (*state, error) {
 	return s, s.finalize()
 }
 
-type choiceRune func(r rune) bool
-type choice struct {
-	test  choiceRune
-	next  []choice
-	while choiceRune
-	end   []choiceRune
-	is    string
+type parseState int
+
+const (
+	parseStateUnknown parseState = iota
+	parseStateRoot
+	parseStateContext
+	parseStateSet
+	parseStateArray
+	parseStateTable
+)
+
+type parse struct {
 }
 
-var cc = []choice{
+var parseRoot = &parse{}
+
+type lexRune func(r rune) bool
+
+type lex struct {
+	is    tokenType
+	test  lexRune
+	next  []lex
+	while lexRune
+	end   []lexRune
+}
+
+//go:generate stringer -trimprefix token -type tokenType
+
+type tokenType int
+
+const (
+	tokenUnknown tokenType = iota
+	tokenNewline
+	tokenWhitespace
+	tokenIdentifier
+	tokenComment
+	tokenSymbol
+	tokenNumber
+	tokenQuote
+)
+
+var lexRoot = []lex{
 	{
-		is: "newline",
+		is: tokenNewline,
 		test: func(r rune) bool {
 			return r == '\n'
 		},
@@ -132,7 +164,7 @@ var cc = []choice{
 		},
 	},
 	{
-		is: "whitespace",
+		is: tokenWhitespace,
 		test: func(r rune) bool {
 			return unicode.IsSpace(r)
 		},
@@ -141,7 +173,7 @@ var cc = []choice{
 		},
 	},
 	{
-		is: "identifier",
+		is: tokenIdentifier,
 		test: func(r rune) bool {
 			return unicode.IsLetter(r) || r == '_'
 		},
@@ -153,24 +185,24 @@ var cc = []choice{
 		test: func(r rune) bool {
 			return r == '/'
 		},
-		next: []choice{
+		next: []lex{
 			{
-				is: "singleline-comment",
+				is: tokenComment,
 				test: func(r rune) bool {
 					return r == '/'
 				},
-				end: []choiceRune{
+				end: []lexRune{
 					func(r rune) bool {
 						return r == '\n'
 					},
 				},
 			},
 			{
-				is: "multiline-comment",
+				is: tokenComment,
 				test: func(r rune) bool {
 					return r == '*'
 				},
-				end: []choiceRune{
+				end: []lexRune{
 					func(r rune) bool {
 						return r == '*'
 					},
@@ -185,7 +217,7 @@ var cc = []choice{
 		},
 	},
 	{
-		is: "symbol",
+		is: tokenSymbol,
 		test: func(r rune) bool {
 			switch r {
 			default:
@@ -199,7 +231,7 @@ var cc = []choice{
 		},
 	},
 	{
-		is: "number",
+		is: tokenNumber,
 		test: func(r rune) bool {
 			return unicode.IsNumber(r)
 		},
@@ -208,11 +240,11 @@ var cc = []choice{
 		},
 	},
 	{
-		is: "quote",
+		is: tokenQuote,
 		test: func(r rune) bool {
 			return r == '"'
 		},
-		end: []choiceRune{
+		end: []lexRune{
 			func(r rune) bool {
 				return r == '"'
 			},
@@ -220,7 +252,7 @@ var cc = []choice{
 	},
 }
 
-func (s *state) runChoiceOpt(c choice, r rune, size int) (bool, error) {
+func (s *state) runLexerItem(c lex, r rune, size int) (bool, error) {
 	if !c.test(r) {
 		return false, nil
 	}
@@ -231,7 +263,7 @@ func (s *state) runChoiceOpt(c choice, r rune, size int) (bool, error) {
 		}
 		s.nextBuf = append(s.nextBuf, r)
 		for _, subc := range c.next {
-			ok, err := s.runChoiceOpt(subc, r, size)
+			ok, err := s.runLexerItem(subc, r, size)
 			if err != nil {
 				return false, err
 			}
@@ -302,15 +334,28 @@ func (p pos) add(s string) pos {
 	p.LineRune += int64(utf8.RuneCountInString(s))
 	return p
 }
-func (s *state) emit(t string) {
+
+func (s *state) emit(t tokenType) {
 	v := s.out.String()
-	fmt.Printf("token@%v: <%s> %q\n", s.pos, t, v)
+
+	s.emitToken(lexToken{Pos: s.pos, Type: t, Value: v})
+
 	s.pos = s.pos.add(v)
 	s.out.Reset()
 	s.nextBuf = s.nextBuf[:0]
 }
 
-func (s *state) runChoice() error {
+type lexToken struct {
+	Pos   pos
+	Type  tokenType
+	Value string
+}
+
+func (s *state) emitToken(token lexToken) {
+	fmt.Printf("token@%v: <%s> %q\n", token.Pos, token.Type, token.Value)
+}
+
+func (s *state) runLexer() error {
 loop:
 	for {
 		r, size, err := s.buf.ReadRune()
@@ -318,8 +363,8 @@ loop:
 			return err
 		}
 		s.nextBuf = append(s.nextBuf, r)
-		for _, c := range cc {
-			ok, err := s.runChoiceOpt(c, r, size)
+		for _, c := range lexRoot {
+			ok, err := s.runLexerItem(c, r, size)
 			if err != nil {
 				return err
 			}

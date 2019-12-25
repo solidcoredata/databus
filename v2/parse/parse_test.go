@@ -54,7 +54,7 @@ func TestLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st, err := parse(fr)
+	st, err := ParseFile(fr)
 	if err != nil {
 		t.Fatal(err)
 	}
