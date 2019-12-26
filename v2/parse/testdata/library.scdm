@@ -97,7 +97,7 @@ set roles table(
 // Specify what columns may be read, and what where clauses must be used when selecting rows.
 set table.books.require table(
     role | permission | query
-    anon | S          | and b.published == true
+    anon | S          | and eq(b.published, true)
 )
 
 set table.books.columns table(
@@ -109,7 +109,7 @@ set table.books.columns table(
 
 set table.genre.require table(
     role | permission | query
-    anon | S          | and (from books b; and b.genre == g.id;) // Ensure at least one (published) book has the genre.
+    anon | S          | and query(from books b; and b.genre == g.id;) // Ensure at least one (published) book has the genre.
 )
 
 set table.genre.columns table (

@@ -2,6 +2,7 @@ package parse
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -62,7 +63,9 @@ type ValueTable struct {
 	RawValues [][]string
 }
 type file struct {
-	name string
+	Name string
+
+	Tokens []lexToken
 }
 type pos struct {
 	File     *file
@@ -70,24 +73,28 @@ type pos struct {
 	LineRune int64 // rune in line (starting at 1)
 	Byte     int64 // byte in input (starting at 0)
 }
+
 type state struct {
+	ctx  context.Context
+	stop func()
+	err  error
+
+	files []*file
+
 	buf *bufio.Reader
 	pos pos
 
 	nextBuf []rune
 	out     *strings.Builder
 }
-type token struct {
-	file  *file
-	pos   pos
-	value []byte
-}
 
 func (s *state) load(name string, r io.Reader) error {
+	f := &file{Name: name}
+	s.files = append(s.files, f)
 	s.buf = bufio.NewReader(r)
 	s.out = &strings.Builder{}
 	s.pos = pos{
-		File:     &file{name: name},
+		File:     f,
 		Line:     1,
 		LineRune: 1,
 		Byte:     0,
@@ -95,16 +102,23 @@ func (s *state) load(name string, r io.Reader) error {
 
 	err := s.runLexer()
 	if err == io.EOF {
+		s.emitToken(lexToken{Pos: s.pos, Type: tokenEOF})
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("%s:%d:%d %v", s.pos.File.Name, s.pos.Line, s.pos.LineRune, err)
 	}
 	return err
 }
-func (s *state) finalize() error {
-	return nil
-}
 
-func ParseFile(fr FileReader) (*state, error) {
-	s := &state{}
+func ParseFile(ctx context.Context, fr FileReader) (*state, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	s := &state{
+		ctx:  ctx,
+		stop: cancel,
+	}
+	defer cancel()
+
 	err := fr.Load(s.load)
 	if err != nil {
 		return nil, err
@@ -112,6 +126,7 @@ func ParseFile(fr FileReader) (*state, error) {
 	return s, s.finalize()
 }
 
+/*
 type parseState int
 
 const (
@@ -122,11 +137,7 @@ const (
 	parseStateArray
 	parseStateTable
 )
-
-type parse struct {
-}
-
-var parseRoot = &parse{}
+*/
 
 type lexRune func(r rune) bool
 
@@ -151,6 +162,7 @@ const (
 	tokenSymbol
 	tokenNumber
 	tokenQuote
+	tokenEOF
 )
 
 var lexRoot = []lex{
@@ -253,6 +265,9 @@ var lexRoot = []lex{
 }
 
 func (s *state) runLexerItem(c lex, r rune, size int) (bool, error) {
+	if err := s.ctx.Err(); err != nil {
+		return false, err
+	}
 	if !c.test(r) {
 		return false, nil
 	}
@@ -335,29 +350,12 @@ func (p pos) add(s string) pos {
 	return p
 }
 
-func (s *state) emit(t tokenType) {
-	v := s.out.String()
-
-	s.emitToken(lexToken{Pos: s.pos, Type: t, Value: v})
-
-	s.pos = s.pos.add(v)
-	s.out.Reset()
-	s.nextBuf = s.nextBuf[:0]
-}
-
-type lexToken struct {
-	Pos   pos
-	Type  tokenType
-	Value string
-}
-
-func (s *state) emitToken(token lexToken) {
-	fmt.Printf("token@%v: <%s> %q\n", token.Pos, token.Type, token.Value)
-}
-
 func (s *state) runLexer() error {
 loop:
 	for {
+		if err := s.ctx.Err(); err != nil {
+			return err
+		}
 		r, size, err := s.buf.ReadRune()
 		if err != nil {
 			return err
@@ -374,4 +372,57 @@ loop:
 		}
 		return fmt.Errorf("no state for <%d> %q", r, string(r))
 	}
+}
+
+func (s *state) emit(t tokenType) {
+	if err := s.ctx.Err(); err != nil {
+		return
+	}
+	v := s.out.String()
+
+	s.emitToken(lexToken{Pos: s.pos, Type: t, Value: v})
+
+	s.pos = s.pos.add(v)
+	s.out.Reset()
+	s.nextBuf = s.nextBuf[:0]
+}
+
+type lexToken struct {
+	Pos   pos
+	Type  tokenType
+	Value string
+}
+
+func (s *state) emitToken(token lexToken) {
+	token.Pos.File.Tokens = append(token.Pos.File.Tokens, token)
+}
+
+func (s *state) finalize() error {
+	for _, f := range s.files {
+		err := s.finalizeFile(f)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (s *state) finalizeFile(f *file) error {
+	tokenIndex := 0
+	next := func() (t lexToken) {
+		if tokenIndex >= len(f.Tokens) {
+			return t
+		}
+		t = f.Tokens[tokenIndex]
+		tokenIndex++
+		return t
+	}
+
+	for {
+		t := next()
+		switch t.Type {
+		case tokenComment:
+		}
+	}
+
+	return nil
 }

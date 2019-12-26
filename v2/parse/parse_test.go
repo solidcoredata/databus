@@ -2,6 +2,7 @@ package parse
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -54,7 +55,8 @@ func TestLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	st, err := ParseFile(fr)
+	ctx := context.Background()
+	st, err := ParseFile(ctx, fr)
 	if err != nil {
 		t.Fatal(err)
 	}
