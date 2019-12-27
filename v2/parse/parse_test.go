@@ -3,7 +3,6 @@ package parse
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"regexp"
@@ -56,9 +55,11 @@ func TestLibrary(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	st, err := ParseFile(ctx, fr)
+	root, err := ParseFile(ctx, fr)
+	if root != nil {
+		t.Logf("root: %s\n", root)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf("state: %+v\n", *st)
 }

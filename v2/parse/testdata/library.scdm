@@ -11,7 +11,7 @@ create portal.admin
 
 create table.books
 
-set table.books.tags array(softdelete, audit)
+set table.books.tags list(softdelete, audit)
 set table.books.columns table(
     name   | type | default |   key   |  length | fk
     id    |  int  | serial |  key    | -
@@ -29,7 +29,7 @@ set table.books.indices table (
 
 create table.genre
 
-set table.genre.tags array(softdelete, audit)
+set table.genre.tags list(softdelete, audit)
 
 set tags.softdelete.columns table(
     name | type | default

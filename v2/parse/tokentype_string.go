@@ -16,11 +16,13 @@ func _() {
 	_ = x[tokenSymbol-5]
 	_ = x[tokenNumber-6]
 	_ = x[tokenQuote-7]
+	_ = x[tokenEOF-8]
+	_ = x[tokenEOS-9]
 }
 
-const _tokenType_name = "UnknownNewlineWhitespaceIdentifierCommentSymbolNumberQuote"
+const _tokenType_name = "UnknownNewlineWhitespaceIdentifierCommentSymbolNumberQuoteEOFEOS"
 
-var _tokenType_index = [...]uint8{0, 7, 14, 24, 34, 41, 47, 53, 58}
+var _tokenType_index = [...]uint8{0, 7, 14, 24, 34, 41, 47, 53, 58, 61, 64}
 
 func (i tokenType) String() string {
 	if i < 0 || i >= tokenType(len(_tokenType_index)-1) {
