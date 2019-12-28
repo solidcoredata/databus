@@ -539,17 +539,29 @@ func (p *parseComplexValue) AssignNext(t lexToken) (bool, parsePart, error) {
 	default:
 		return false, nil, terr("unexpected token type", t)
 	case tokenEOS:
-		return true, nil, nil
+		return false, nil, nil
 	case tokenSymbol:
 		switch t.Value {
 		default:
 			p.Values = append(p.Values, &parseComplexItem{Token: t})
 			return true, p, nil
-		// case "|", ",":
-		// 	return true, nil, nil
+		case "|": // Done reading value from table.
+			return true, nil, nil
+		case ")":
+			return false, nil, nil
 		case "(":
-			p.Table = &parseTableValue{}
-			return true, p.Table, nil
+			if len(p.Values) == 0 {
+				return false, nil, terr("must declare type before table or list", t)
+			}
+			v := p.Values[len(p.Values)-1]
+			table := &parseTableValue{}
+			v.Complex = &parseComplexValue{
+				Table: table,
+			}
+			// buf := &strings.Builder{}
+			// p.WriteToBuilder(buf)
+			// fmt.Println(buf)
+			return true, table, nil
 		}
 	case tokenIdentifier, tokenNumber:
 		p.Values = append(p.Values, &parseComplexItem{Token: t})
@@ -573,7 +585,7 @@ func (p *parseComplexValue) WriteToBuilder(buf *strings.Builder) {
 		p.List.WriteToBuilder(buf)
 	}
 	if p.Table != nil {
-		buf.WriteString(", Table: ")
+		buf.WriteString(", Table:\n")
 		p.Table.WriteToBuilder(buf)
 	}
 }
@@ -604,54 +616,53 @@ type parseTableValue struct {
 
 func (p *parseTableValue) AssignNext(t lexToken) (bool, parsePart, error) {
 	var row *parseComplexValue
-	if len(p.Rows) == 0 {
-		row = &parseComplexValue{}
-		p.Rows = append(p.Rows, row)
-	} else {
+	if len(p.Rows) > 0 {
 		row = p.Rows[len(p.Rows)-1]
 	}
+
 	switch t.Type {
-	case tokenIdentifier:
-		v := &parseComplexItem{
-			Token: t,
+	default:
+		if row == nil {
+			row = &parseComplexValue{}
+			p.Rows = append(p.Rows, row)
 		}
-		row.Values = append(row.Values, v)
+		return false, row, nil
 	case tokenSymbol:
 		switch t.Value {
-		case ".":
-			v := &parseComplexItem{
-				Token: t,
+		default:
+			if row == nil {
+				row = &parseComplexValue{}
+				p.Rows = append(p.Rows, row)
 			}
-			row.Values = append(row.Values, v)
-		case "(":
-			if len(row.Values) == 0 {
-				return false, nil, terr("must declare type before table or list", t)
-			}
-			v := row.Values[len(row.Values)-1]
-			table := &parseTableValue{}
-			complex := &parseComplexValue{
-				Table: table,
-			}
-			v.Complex = complex
-			return true, table, nil
+			return false, row, nil
 		case ")":
+			// Remove trailing empty row added by EOS.
+			if row != nil && len(row.Values) == 0 && row.List == nil && row.Table == nil {
+				p.Rows = p.Rows[:len(p.Rows)-1]
+			}
 			return true, nil, nil
 		case "|":
-			row.Values = append(row.Values, &parseComplexItem{})
+			if row == nil {
+				return false, nil, terr(`unexpected "|" before first row`, t)
+			}
+			v := &parseComplexItem{}
+			row.Values = append(row.Values, v)
+			return true, v.Complex, nil
 		}
 	case tokenEOS:
 		row = &parseComplexValue{}
 		p.Rows = append(p.Rows, row)
-		return true, p, nil
+		return true, row, nil
 	}
-	// TODO(daniel.theophanes): Actually store values.
-	return true, p, nil
 }
 func (p *parseTableValue) WriteToBuilder(buf *strings.Builder) {
-	for _, row := range p.Rows {
+	for i, row := range p.Rows {
+		if i > 0 {
+			buf.WriteRune('\n')
+		}
 		buf.WriteRune('\t')
+		buf.WriteString("Row: ")
 		row.WriteToBuilder(buf)
-		buf.WriteRune('\n')
 	}
 }
 
@@ -735,7 +746,7 @@ func finalizeFile(f *file, root *parseRoot) error {
 	}
 	nextToken := func() lexToken {
 		t := nextTokenPre()
-		fmt.Printf("%s:%d:%d %s %q\n", t.Pos.File.Name, t.Pos.Line, t.Pos.LineRune, t.Type, t.Value)
+		// fmt.Printf("%s:%d:%d %s %q\n", t.Pos.File.Name, t.Pos.Line, t.Pos.LineRune, t.Type, t.Value)
 		return t
 	}
 

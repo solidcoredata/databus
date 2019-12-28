@@ -6,13 +6,20 @@ import (
 	"io"
 	"io/ioutil"
 	"regexp"
+	"sort"
 	"testing"
 )
 
 type mapFileReader map[string]io.Reader
 
 func (fr mapFileReader) Load(loader FileLoader) error {
-	for name, r := range fr {
+	names := make([]string, 0, len(fr))
+	for name := range fr {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		r := fr[name]
 		err := loader(name, r)
 		if err != nil {
 			return err
