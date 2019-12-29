@@ -473,6 +473,51 @@ type parseRoot struct {
 	Statements []*parseStatement
 }
 
+type parseStatement struct {
+	Type       statementType
+	Identifier *parseFullIdentifier
+	Value      *parseValueList
+	Comments   *parseCommentBlock
+}
+
+type parseFullIdentifier struct {
+	Parts []lexToken
+}
+
+/*
+	Table = []Row
+	Row = []Cell
+	Cell = []Value
+	Value = (Token | Table)
+*/
+
+type parseComplexItem struct {
+	Token lexToken
+	Table *parseTableValue
+}
+
+type parseValueList struct {
+	Values []*parseComplexItem
+}
+
+type parseRow struct {
+	Cells []*parseValueList
+}
+type parseTableValue struct {
+	Rows []*parseRow
+}
+type parseCommentLine struct {
+	Comment string
+	Suffix  bool // Not a whole line.
+	Start   pos
+}
+
+type parseCommentBlock struct {
+	Start  pos
+	Before []*parseCommentLine
+	Suffix []*parseCommentLine
+}
+
 func (p *parseRoot) WriteToBuilder(buf *strings.Builder, level int) {
 	for _, st := range p.Statements {
 		buf.WriteString("Statement: ")
@@ -498,10 +543,6 @@ func (p *parseRoot) AssignNext(t lexToken) (bool, parsePart, error) {
 
 		return false, st, nil
 	}
-}
-
-type parseFullIdentifier struct {
-	Parts []lexToken
 }
 
 func (p *parseFullIdentifier) AssignNext(t lexToken) (bool, parsePart, error) {
@@ -532,23 +573,7 @@ func (p *parseFullIdentifier) WriteToBuilder(buf *strings.Builder, level int) {
 	}
 }
 
-/*
-	Table = []Row
-	Row = []Cell
-	Cell = []Value
-	Value = (Token | Table)
-*/
-
-type parseComplexItem struct {
-	Token lexToken
-	Table *parseTableValue
-}
-
-type parseComplexValue struct {
-	Values []*parseComplexItem
-}
-
-func (p *parseComplexValue) AssignNext(t lexToken) (bool, parsePart, error) {
+func (p *parseValueList) AssignNext(t lexToken) (bool, parsePart, error) {
 	switch t.Type {
 	default:
 		return false, nil, terr("unexpected token type", t)
@@ -579,7 +604,7 @@ func (p *parseComplexValue) AssignNext(t lexToken) (bool, parsePart, error) {
 		return true, p, nil
 	}
 }
-func (p *parseComplexValue) WriteToBuilder(buf *strings.Builder, level int) {
+func (p *parseValueList) WriteToBuilder(buf *strings.Builder, level int) {
 	var prev lexToken
 	for i, v := range p.Values {
 		if i > 0 {
@@ -597,15 +622,11 @@ func (p *parseComplexValue) WriteToBuilder(buf *strings.Builder, level int) {
 	}
 }
 
-type parseListValue struct {
-	Cells []*parseComplexValue
-}
-
-func (p *parseListValue) AssignNext(t lexToken) (bool, parsePart, error) {
+func (p *parseRow) AssignNext(t lexToken) (bool, parsePart, error) {
 	switch t.Type {
 	default:
 		if len(p.Cells) == 0 {
-			v := &parseComplexValue{}
+			v := &parseValueList{}
 			p.Cells = append(p.Cells, v)
 			return false, v, nil
 		}
@@ -617,14 +638,14 @@ func (p *parseListValue) AssignNext(t lexToken) (bool, parsePart, error) {
 		switch t.Value {
 		default:
 			if len(p.Cells) == 0 {
-				v := &parseComplexValue{}
+				v := &parseValueList{}
 				p.Cells = append(p.Cells, v)
 				return false, v, nil
 			}
 			v := p.Cells[len(p.Cells)-1]
 			return false, v, nil
 		case "|", ",": // Done reading value from table.
-			v := &parseComplexValue{}
+			v := &parseValueList{}
 			p.Cells = append(p.Cells, v)
 			return true, v, nil
 		case ")":
@@ -633,7 +654,7 @@ func (p *parseListValue) AssignNext(t lexToken) (bool, parsePart, error) {
 	}
 }
 
-func (p *parseListValue) WriteToBuilder(buf *strings.Builder, level int) {
+func (p *parseRow) WriteToBuilder(buf *strings.Builder, level int) {
 	for i, v := range p.Cells {
 		if i > 0 {
 			buf.WriteString(" | ")
@@ -642,12 +663,8 @@ func (p *parseListValue) WriteToBuilder(buf *strings.Builder, level int) {
 	}
 }
 
-type parseTableValue struct {
-	Rows []*parseListValue
-}
-
 func (p *parseTableValue) AssignNext(t lexToken) (bool, parsePart, error) {
-	var row *parseListValue
+	var row *parseRow
 	if len(p.Rows) > 0 {
 		row = p.Rows[len(p.Rows)-1]
 	}
@@ -655,7 +672,7 @@ func (p *parseTableValue) AssignNext(t lexToken) (bool, parsePart, error) {
 	switch t.Type {
 	default:
 		if row == nil {
-			row = &parseListValue{}
+			row = &parseRow{}
 			p.Rows = append(p.Rows, row)
 		}
 		return false, row, nil
@@ -663,7 +680,7 @@ func (p *parseTableValue) AssignNext(t lexToken) (bool, parsePart, error) {
 		switch t.Value {
 		default:
 			if row == nil {
-				row = &parseListValue{}
+				row = &parseRow{}
 				p.Rows = append(p.Rows, row)
 			}
 			return false, row, nil
@@ -677,12 +694,12 @@ func (p *parseTableValue) AssignNext(t lexToken) (bool, parsePart, error) {
 			if row == nil {
 				return false, nil, terr(`unexpected "|" before first row`, t)
 			}
-			v := &parseComplexValue{}
+			v := &parseValueList{}
 			row.Cells = append(row.Cells, v)
 			return true, row, nil
 		}
 	case tokenEOS:
-		row = &parseListValue{}
+		row = &parseRow{}
 		p.Rows = append(p.Rows, row)
 		return true, row, nil
 	}
@@ -696,13 +713,6 @@ func (p *parseTableValue) WriteToBuilder(buf *strings.Builder, level int) {
 		buf.WriteString("Row: ")
 		row.WriteToBuilder(buf, level)
 	}
-}
-
-type parseStatement struct {
-	Type       statementType
-	Identifier *parseFullIdentifier
-	Value      *parseComplexValue
-	Comments   *parseCommentBlock
 }
 
 func (p *parseStatement) AssignNext(t lexToken) (bool, parsePart, error) {
@@ -733,7 +743,7 @@ func (p *parseStatement) AssignNext(t lexToken) (bool, parsePart, error) {
 		return false, nil, terr("unexpected state, expected statement Identifier to be set", t)
 	}
 	if p.Value == nil {
-		p.Value = &parseComplexValue{}
+		p.Value = &parseValueList{}
 		return false, p.Value, nil
 	}
 	return false, nil, nil
@@ -752,18 +762,6 @@ func (p *parseStatement) WriteToBuilder(buf *strings.Builder, level int) {
 			p.Value.WriteToBuilder(buf, level)
 		}
 	}
-}
-
-type parseCommentLine struct {
-	Comment string
-	Suffix  bool // Not a whole line.
-	Start   pos
-}
-
-type parseCommentBlock struct {
-	Start  pos
-	Before []*parseCommentLine
-	Suffix []*parseCommentLine
 }
 
 func (s *state) runParse(root *parseRoot) error {
