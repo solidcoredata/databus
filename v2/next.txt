@@ -1,0 +1,6 @@
+Next
+
+ 1. Compile into finished configuration.
+ 2. Perform a few (not all) checks on configuration.
+ 3. Turn into a database create script (ignore alter).
+ 4. Turn into SQL queries.
