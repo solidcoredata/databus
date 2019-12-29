@@ -9,14 +9,15 @@ func _() {
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[statementUnknown-0]
-	_ = x[statementContext-1]
-	_ = x[statementCreate-2]
-	_ = x[statementSet-3]
+	_ = x[statementComment-1]
+	_ = x[statementContext-2]
+	_ = x[statementCreate-3]
+	_ = x[statementSet-4]
 }
 
-const _statementType_name = "UnknownContextCreateSet"
+const _statementType_name = "UnknownCommentContextCreateSet"
 
-var _statementType_index = [...]uint8{0, 7, 14, 20, 23}
+var _statementType_index = [...]uint8{0, 7, 14, 21, 27, 30}
 
 func (i statementType) String() string {
 	if i < 0 || i >= statementType(len(_statementType_index)-1) {

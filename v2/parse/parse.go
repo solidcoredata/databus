@@ -34,38 +34,8 @@ type FileReader interface {
 
 type FileLoader func(name string, r io.Reader) error
 
-type Selector struct {
-	Raw string
-}
-
-type Context struct {
-	Selector Selector
-}
-type Create struct {
-	Selector Selector
-}
-type Set struct {
-	Selector Selector
-	Value    Value
-}
-
-type Value struct {
-	ValueName string
-	Array     *ValueArray
-	Table     *ValueTable
-}
-
-type ValueArray struct {
-	Raw []string
-}
-type ValueTable struct {
-	RawHeader []string
-	RawValues [][]string
-}
 type file struct {
 	Name string
-
-	Tokens []lexToken
 }
 type pos struct {
 	File     *file
@@ -87,7 +57,9 @@ type state struct {
 	nextBuf []rune
 	out     *strings.Builder
 
-	prevTokenSymbol bool
+	emitter  chan lexToken
+	comments *parseCommentBlock
+	prevEmit lexToken
 }
 
 func (s *state) load(name string, r io.Reader) error {
@@ -116,16 +88,30 @@ func (s *state) load(name string, r io.Reader) error {
 func ParseFile(ctx context.Context, fr FileReader) (*parseRoot, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &state{
-		ctx:  ctx,
-		stop: cancel,
+		ctx:     ctx,
+		stop:    cancel,
+		emitter: make(chan lexToken, 3),
 	}
 	defer cancel()
 
+	root := &parseRoot{}
+	done := make(chan error, 1)
+	// Concurrent only to make it easier to program for the time being.
+	go func() {
+		done <- s.runParse(root)
+		cancel()
+	}()
+
 	err := fr.Load(s.load)
+	close(s.emitter)
 	if err != nil {
+		if cerr, _ := <-done; cerr != nil {
+			return nil, cerr
+		}
 		return nil, err
 	}
-	return s.finalize()
+
+	return root, <-done
 }
 
 type lexRune func(r rune) bool
@@ -397,38 +383,60 @@ func (s *state) emit(t tokenType) {
 }
 
 type lexToken struct {
-	Pos   pos
-	Type  tokenType
-	Value string
+	Pos      pos
+	Type     tokenType
+	Value    string
+	Comments *parseCommentBlock
 }
 
-func (s *state) emitToken(token lexToken) {
-	token.Pos.File.Tokens = append(token.Pos.File.Tokens, token)
-}
-
-func (s *state) finalize() (*parseRoot, error) {
-	root := &parseRoot{}
-	for _, f := range s.files {
-		err := finalizeFile(f, root)
-		if err != nil {
-			return root, err
-		}
+func (s *state) emitToken(t lexToken) {
+	if t.Type == tokenWhitespace {
+		return
 	}
-	return root, nil
+	// For now, remove comments as well.
+	// These comments are not currently used. Possibly remove fully again.
+	if t.Type == tokenComment {
+		if s.comments == nil {
+			s.comments = &parseCommentBlock{
+				Start: t.Pos,
+			}
+		}
+		c := &parseCommentLine{
+			Comment: t.Value,
+			Start:   t.Pos,
+			Suffix:  s.prevEmit.Type != tokenNewline,
+		}
+		if c.Suffix {
+			s.comments.Suffix = append(s.comments.Suffix, c)
+		} else {
+			s.comments.Before = append(s.comments.Before, c)
+		}
+		return
+	}
+	if t.Type == tokenNewline {
+		t = lexToken{Pos: t.Pos, Type: tokenEOS}
+	}
+	if t.Type == tokenSymbol && t.Value == ";" {
+		t = lexToken{Pos: t.Pos, Type: tokenEOS}
+	}
+	prev := s.prevEmit
+	if s.comments != nil {
+		if len(s.comments.Suffix) > 0 {
+			prev.Comments = s.comments
+		} else {
+			t.Comments = s.comments
+		}
+		s.comments = nil
+	}
+	if prev.Type != tokenUnknown {
+		s.emitter <- prev
+	}
+	s.prevEmit = t
+	if t.Type == tokenEOF {
+		s.emitter <- t
+		s.prevEmit = lexToken{}
+	}
 }
-
-/*
-type parseState int
-
-const (
-	parseStateUnknown parseState = iota
-	parseStateRoot
-	parseStateContext
-	parseStateSet
-	parseStateArray
-	parseStateTable
-)
-*/
 
 type tokenError struct {
 	msg   string
@@ -450,6 +458,7 @@ type statementType int
 
 const (
 	statementUnknown statementType = iota
+	statementComment
 	statementContext
 	statementCreate
 	statementSet
@@ -693,6 +702,7 @@ type parseStatement struct {
 	Type       statementType
 	Identifier *parseFullIdentifier
 	Value      *parseComplexValue
+	Comments   *parseCommentBlock
 }
 
 func (p *parseStatement) AssignNext(t lexToken) (bool, parsePart, error) {
@@ -700,6 +710,10 @@ func (p *parseStatement) AssignNext(t lexToken) (bool, parsePart, error) {
 		switch t.Type {
 		default:
 			return false, nil, terr("unknown statement token type", t)
+		case tokenComment:
+			p.Type = statementComment
+			p.Comments = t.Comments
+			return true, p, nil
 		case tokenIdentifier:
 			switch t.Value {
 			default:
@@ -726,77 +740,62 @@ func (p *parseStatement) AssignNext(t lexToken) (bool, parsePart, error) {
 }
 func (p *parseStatement) WriteToBuilder(buf *strings.Builder, level int) {
 	buf.WriteString(p.Type.String())
-	buf.WriteString(" ")
-	p.Identifier.WriteToBuilder(buf, level)
-	switch {
-	case p.Value != nil && len(p.Value.Values) > 0:
+	switch p.Type {
+	case statementComment:
+		buf.WriteString(fmt.Sprintf("%v", p.Comments))
+	default:
 		buf.WriteString(" ")
-		p.Value.WriteToBuilder(buf, level)
+		p.Identifier.WriteToBuilder(buf, level)
+		switch {
+		case p.Value != nil && len(p.Value.Values) > 0:
+			buf.WriteString(" ")
+			p.Value.WriteToBuilder(buf, level)
+		}
 	}
 }
 
-func finalizeFile(f *file, root *parseRoot) error {
-	tokenIndex := 0
-	// prevTokenSymbol := true
-	nextTokenPre := func() (t lexToken) {
-		for {
-			if tokenIndex >= len(f.Tokens) {
-				return t
-			}
-			t = f.Tokens[tokenIndex]
-			tokenIndex++
+type parseCommentLine struct {
+	Comment string
+	Suffix  bool // Not a whole line.
+	Start   pos
+}
 
-			if t.Type == tokenWhitespace {
-				continue
-			}
-			// For now, remove comments as well.
-			if t.Type == tokenComment {
-				continue
-			}
-			// prevTokenSymbol = t.Type == tokenSymbol || t.Type == tokenNewline
-			if t.Type == tokenNewline {
-				return lexToken{Pos: t.Pos, Type: tokenEOS}
-			}
-			if t.Type == tokenSymbol && t.Value == ";" {
-				return lexToken{Pos: t.Pos, Type: tokenEOS}
-			}
-			if t.Type == tokenNewline {
-				continue
-			}
-			return t
-		}
-	}
-	nextToken := func() lexToken {
-		t := nextTokenPre()
-		// fmt.Printf("%s:%d:%d %s %q\n", t.Pos.File.Name, t.Pos.Line, t.Pos.LineRune, t.Type, t.Value)
-		return t
-	}
+type parseCommentBlock struct {
+	Start  pos
+	Before []*parseCommentLine
+	Suffix []*parseCommentLine
+}
 
-	stack := []parsePart{root}
-
-	t := nextToken()
-
+func (s *state) runParse(root *parseRoot) error {
+fileloop:
 	for {
-		next := stack[len(stack)-1]
-		usedToken, goNext, err := next.AssignNext(t)
-		if err != nil {
-			return err
+		stack := []parsePart{root}
+
+		t, ok := <-s.emitter
+		if !ok {
+			return nil
 		}
-		switch {
-		case goNext == next:
-			// Nothing.
-		case goNext == nil:
-			stack = stack[:len(stack)-1]
-		default:
-			stack = append(stack, goNext)
-		}
-		if usedToken {
-			t = nextToken()
-			if t.Type == tokenEOF {
-				break
+
+		for {
+			next := stack[len(stack)-1]
+			usedToken, goNext, err := next.AssignNext(t)
+			if err != nil {
+				return err
+			}
+			switch {
+			case goNext == next:
+				// Nothing.
+			case goNext == nil:
+				stack = stack[:len(stack)-1]
+			default:
+				stack = append(stack, goNext)
+			}
+			if usedToken {
+				t, ok = <-s.emitter
+				if t.Type == tokenEOF || t.Type == tokenUnknown {
+					continue fileloop
+				}
 			}
 		}
 	}
-
-	return nil
 }
