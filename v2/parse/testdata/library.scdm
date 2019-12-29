@@ -23,8 +23,8 @@ set table.books.columns table(
 
 set table.books.indices table (
     name       |    index       |   include | where
-    pagelength |   pages, genre | id | deleted == 0
-    genre      |    genre       | id | deleted == 0
+    pagelength |   pages, genre | id | eq(deleted, 0)
+    genre      |    genre       | id | eq(deleted, 0)
 )
 
 create table.genre
@@ -43,11 +43,11 @@ set tags.softdelete.columns table(
 
 set tags.softdelete.queries table(
     name | query
-    softdelete_filter | or(and(.show_deleted, .show_deleted == true), deleted == false)
+    softdelete_filter | or(and(.show_deleted, eq(.show_deleted, true_), eq(deleted, false))
 )
 set tags.softdelete.triggers table(
     name | on | do
-    audit_softdelete_delete | delete | cancel delete; update; set deleted = 1;
+    audit_softdelete_delete | delete | cancel delete; update; set deleted 1;
 )
 
 set tags.audit.columns table(
@@ -60,7 +60,7 @@ set tags.audit.columns table(
 
 set tags.audit.triggers table(
     name | on | do
-    audit_update | update | update; set time_updated = time.now(); set account_updated = or(.account, 0)
+    audit_update | update | update; set time_updated time.now(); set account_updated or(.account, 0)
 )
 
 set tags.audit&softdelete.columns table(
@@ -71,7 +71,7 @@ set tags.audit&softdelete.columns table(
 
 set tags.audit&softdelete.triggers table(
     name | on | do
-    audit_softdelete_delete | delete | update; set time_deleted = time.now(); set account_deleted = or(.account, 0)
+    audit_softdelete_delete | delete | update; set time_deleted time.now(); set account_deleted or(.account, 0)
 )
 
 // TODO(daniel.theophanes): Add ability to add history "sub-tables".
@@ -102,19 +102,19 @@ set table.books.require table(
 
 set table.books.columns table(
     role | column | permission | where
-    anon | id   | S |
-    anon | name | S          | 
-    anon | pagelength | S    | 
+    anon | id   | S | -
+    anon | name | S          | -
+    anon | pagelength | S    | -
 )
 
 set table.genre.require table(
     role | permission | query
-    anon | S          | and query(from books b; and b.genre == g.id;) // Ensure at least one (published) book has the genre.
+    anon | S          | and query(from books b; and eq(b.genre, g.id)) // Ensure at least one (published) book has the genre.
 )
 
 set table.genre.columns table (
     role | column | permission | query
-    anon | name   | S          | 
+    anon | name   | S          | -
 )
 
 -- portal_admin.scd --
