@@ -1,5 +1,25 @@
 -- setup.scd --
 
+schema database.*
+
+schema database.*.table.*
+
+schema database.*.table.*.columns table(
+	name | type | key
+	name | type | key
+	default | query
+	key | bool
+	length | number
+)
+
+schema database.*.table.*.indices table(
+	name | type | key
+	name | type | key
+	index | list
+	include | list
+	where | query
+)
+
 create database.library
 
 -- db.scd --
@@ -17,7 +37,7 @@ set table.books.columns table(
     id    |  int  | serial |  key    | -
     name   | text |  -  | -    |   1000
     pages |  int  |  -  | -    |   -
-    genre | int | - | - | - | genre.id
+    genre | int | - | - | - | table.genre.id
     published | bool | false
 )
 
@@ -30,6 +50,11 @@ set table.books.indices table (
 create table.genre
 
 set table.genre.tags list(softdelete, audit)
+set table.genre.columns table(
+    name   | type | default |   key   |  length | fk
+    id    |  int  | serial |  key    | -
+    name   | text |  -  | -    |   1000
+)
 
 set tags.softdelete.columns table(
     name | type | default
@@ -63,13 +88,13 @@ set tags.audit.triggers table(
     audit_update | update | query(update; set time_updated time.now(); set account_updated or(.account, 0))
 )
 
-set tags.audit&softdelete.columns table(
+set tags.audit+softdelete.columns table(
     name | type | default | nullable
     time_deleted | datetimez | - | nullable
     account_deleted | int | - | nullable
 )
 
-set tags.audit&softdelete.triggers table(
+set tags. audit + softdelete .triggers table(
     name | on | do
     audit_softdelete_delete | delete | query(update; set time_deleted time.now(); set account_deleted or(.account, 0))
 )
@@ -150,3 +175,20 @@ set table.genre.columns table(
     role  | column | permission | where
     admim | * | *       | 
 )
+
+-- ui.scd --
+
+context ui.library_public
+
+set portal database.library.portal.public
+
+set menu table (
+	category | link | display
+	File | open | "Open List"
+	"Home" | home | "Home"
+)
+
+set screen.home table (
+
+)
+

@@ -445,7 +445,7 @@ type tokenError struct {
 
 func (err *tokenError) Error() string {
 	t := err.token
-	return fmt.Sprintf("%s:%d:%d <%s %q> %s", t.Pos.File.Name, t.Pos.Line, t.Pos.LineRune, t.Type, t.Value, err.msg)
+	return fmt.Sprintf("%s:%d:%d %s <%s %q>", t.Pos.File.Name, t.Pos.Line, t.Pos.LineRune, err.msg, t.Type, t.Value)
 }
 
 func terr(msg string, t lexToken) error {
@@ -462,6 +462,7 @@ const (
 	statementContext
 	statementCreate
 	statementSet
+	statementSchema
 )
 
 type parsePart interface {
@@ -599,7 +600,7 @@ func (p *parseValueList) AssignNext(t lexToken) (bool, parsePart, error) {
 			p.Values = append(p.Values, v)
 			return true, table, nil
 		}
-	case tokenIdentifier, tokenNumber:
+	case tokenIdentifier, tokenNumber, tokenQuote:
 		p.Values = append(p.Values, &parseComplexItem{Token: t})
 		return true, p, nil
 	}
@@ -727,13 +728,15 @@ func (p *parseStatement) AssignNext(t lexToken) (bool, parsePart, error) {
 		case tokenIdentifier:
 			switch t.Value {
 			default:
-				return false, nil, terr("unknown statment type %s", t)
+				return false, nil, terr("unknown statment type", t)
 			case "context":
 				p.Type = statementContext
 			case "create":
 				p.Type = statementCreate
 			case "set":
 				p.Type = statementSet
+			case "schema":
+				p.Type = statementSchema
 			}
 			p.Identifier = &parseFullIdentifier{}
 			return true, p.Identifier, nil
