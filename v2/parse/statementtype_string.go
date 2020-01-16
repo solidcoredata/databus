@@ -14,11 +14,12 @@ func _() {
 	_ = x[statementCreate-3]
 	_ = x[statementSet-4]
 	_ = x[statementSchema-5]
+	_ = x[statementVar-6]
 }
 
-const _statementType_name = "UnknownCommentContextCreateSetSchema"
+const _statementType_name = "UnknownCommentContextCreateSetSchemaVar"
 
-var _statementType_index = [...]uint8{0, 7, 14, 21, 27, 30, 36}
+var _statementType_index = [...]uint8{0, 7, 14, 21, 27, 30, 36, 39}
 
 func (i statementType) String() string {
 	if i < 0 || i >= statementType(len(_statementType_index)-1) {

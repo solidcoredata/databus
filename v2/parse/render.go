@@ -12,6 +12,31 @@ func (CRDB) GenerateSchema(root *Root, w io.Writer) error {
 	// 2. Load database dependencies and sort dependencies (topological sort, alpha sort inside layers).
 	// 3. Print each table in SQL dialect.
 
+	// When resolving symbols and values, I need to take a reference: "foo.bar.blah"
+	// and turn it into something useful like "Ref = *Blah" (I think).
+	// I need to validate numbers and strings, and ensure each value is by itself in a cell.
+	// If there is a table type, I need to resolve the table type to a table schema that can be checked.
+	// Either: identifier | number | string | table
+	// identifier: part[.part...]
+	// number: 123.456
+	// string: "ABC"
+	// table: identifier(...)
+	// query: ...
+	//
+	// Maybe add a new statement type "var". Store in separate namespace. Yes.
+	// Assigning a variable to data is done by value, not by reference.
+	//
+	// Maybe allow appending to a type list like "schema table.types | jsonb" which would append jsonb to the existing schema name "types".
+	//
+	// First we lookup the schema to understand what type is expected.
+	// Then if the type expects some value (number | string | table | query | ...), then we set the var.
+	// If the type expects some reference (like to another table or table column) then we link to the data.
+	//
+	// 1. Order of declaration should not matter within a "thing" (module or package or something).
+	// 2. Packages or modules or something need to have explicit imports and dependencies and be unble to modify everything.
+	//
+	// A schema should define what possible schema names.
+
 	for _, db := range root.Data.Names["database"].Order {
 		_ = db.Name
 

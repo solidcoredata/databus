@@ -1,102 +1,132 @@
 -- setup.scd --
 
-schema database.*
-
-schema database.*.table.*
-
-schema database.*.table.*.columns table(
-	name | type | key
-	name | type | key
-	default | query
-	key | bool
-	length | number
+create database.library struct(
+	type db
 )
-
-schema database.*.table.*.indices table(
-	name | type | key
-	name | type | key
-	index | list
-	include | list
-	where | query
-)
-
-create database.library
 
 -- db.scd --
 
 context database.library
 
-create portal.public
-create portal.admin
+create portal.public db.portal
+create portal.admin db.portal
 
-create table.books
+create table.books db.table
 
-set table.books.tags list(softdelete, audit)
-set table.books.columns table(
-    name   | type | default |   key   |  length | fk
-    id    |  int  | serial |  key    | -
-    name   | text |  -  | -    |   1000
-    pages |  int  |  -  | -    |   -
-    genre | int | - | - | - | table.genre.id
-    published | bool | false
+
+set table.book struct(
+	type db.table
+	tags list(softdelete, audit)
+	columns table(
+		name      | type                    | default 
+		id        | key(int)                | serial 
+		name      | text(1000)              |
+		pages     | int                     |
+		genre     | fk(int, table.genre.id) |
+		published | bool                    | false
+	)
 )
 
-set table.books.indices table (
-    name       |    index       |   include | where
-    pagelength |   pages, genre | id | eq(deleted, 0)
-    genre      |    genre       | id | eq(deleted, 0)
+// Tools may display author table as a child of the book table.
+// Furthermore, when finalizing the table, it will look down the chain
+// of identifiers and look for the first "db" type for the correct database
+// to put it in. Each table will then register itself with the database
+// and in a global table registry, as each database will also register itself
+// globally. Registration will be by types.
+//
+//   var Register = map[string]map[string]Struct // map[type]map[full_identifier]Struct
+//   type Struct interface {
+//       Type() string
+//       // Span()...
+//   }
+//
+// The context identifier, relative identifier, and full identifier need to be
+// accessable in the struct for resolving relative identifiers.
+//
+// In a similar way, Named Filters on a table may be declared in any namespace above
+// the table. Generated or tag named filters may be under "mytagname.first_name_contains".
+// This filter can be referred to as "first_name_contains". If there are any named filters
+// with a conflicting name such as "generated.first_name_contains", then "mytagname.first_name_contains"
+// must be used or it will fail to compile.
+//
+// For tags use a tool to generate the additional columns and named filters.
+set table.book.author struct (
+	type db.table
+	columns table (
+		name       | type       | default
+		id         | key(int)   | serial
+		book       | fk(int, table.book)
+		first_name | text       | ""
+		last_name  | text       | ""
+		sort_order | int        | 0
+	)
+)
+
+set table.book.indices table (
+    name       |  index        | include | where
+    pagelength |  pages, genre | id      | eq(deleted, 0)
+    genre      |  genre        | id      | eq(deleted, 0)
+)
+
+var table.books.query.all query(
+	from books b
+	from genre g
+	and contains(b.name, .name)
+	select b.name, g.name genre_name
 )
 
 create table.genre
 
-set table.genre.tags list(softdelete, audit)
-set table.genre.columns table(
-    name   | type | default |   key   |  length | fk
-    id    |  int  | serial |  key    | -
-    name   | text |  -  | -    |   1000
+set table.genre struct(
+	tags list(softdelete, audit)
+	columns table(
+		name   | type       | default
+		id     | key(int)   | serial
+		name   | text(1000) |  -
+	)
 )
 
 set tags.softdelete.columns table(
-    name | type | default
+    name    | type | default
     deleted | bool | false
 )
 
 set tags.softdelete.columns table(
-    name | type | default
+    name    | type | default
     deleted | bool | false
 )
 
 set tags.softdelete.queries table(
-    name | query
+    name              | query
     softdelete_filter | or(and(.show_deleted, eq(.show_deleted, true)), eq(deleted, false))
 )
 set tags.softdelete.triggers table(
-    name | on | do
+    name                    | on     | do
     audit_softdelete_delete | delete | query(cancel delete; update; set deleted 1)
 )
 
 set tags.audit.columns table(
-    name | type | default
-    time_created | datetimez | time.now()
-    account_created | int | or(.account, 0)
-    time_updated | datetimez | time.now()
-    account_updated | int | or(.account, 0)
+    name              | type       | default
+    time_created      | datetimez  | time.now()
+    account_created   | int        | or(@account, 0)
+    time_updated      | datetimez  | time.now()
+    account_updated   | int        | or(@account, 0)
 )
 
 set tags.audit.triggers table(
-    name | on | do
-    audit_update | update | query(update; set time_updated time.now(); set account_updated or(.account, 0))
+    name         | on     | do
+    audit_update | update | query(update; set time_updated time.now(); set account_updated or(@account, 0))
 )
 
 set tags.audit+softdelete.columns table(
-    name | type | default | nullable
-    time_deleted | datetimez | - | nullable
-    account_deleted | int | - | nullable
+    name            | type      | default | nullable
+    time_deleted    | datetimez | -       | nullable
+    account_deleted | int       | -       | nullable
 )
 
 set tags. audit + softdelete .triggers table(
-    name | on | do
-    audit_softdelete_delete | delete | query(update; set time_deleted time.now(); set account_deleted or(.account, 0))
+    name                    | on     | do
+    audit_softdelete_delete | delete | query(update; set time_deleted time.now(); set account_deleted or(@account, 0))
 )
 
 // TODO(daniel.theophanes): Add ability to add history "sub-tables".
@@ -126,10 +156,10 @@ set table.books.require table(
 )
 
 set table.books.columns table(
-    role | column | permission | where
-    anon | id   | S | -
-    anon | name | S          |
-    anon | pagelength | S    |
+    role | column     | permission | where
+    anon | id         | S          | -
+    anon | name       | S          |
+    anon | pagelength | S          |
 )
 
 set table.genre.require table(
@@ -159,21 +189,21 @@ set roles table(
 
 // Specify what columns may be read, and what where clauses must be used when selecting rows.
 set table.books.require table(
-    role | permission | query
-    admin | *   |
+    role  | permission | query
+    admin | *          |
 )
 set table.books.columns table(
     role  | column | permission | where
-    admim | * | *       | 
+    admim | *      | *          | 
 )
 
 set table.genre.require table(
-    role | permission | query
-    admin | *   |
+    role  | permission | query
+    admin | *          |
 )
 set table.genre.columns table(
     role  | column | permission | where
-    admim | * | *       | 
+    admim | *      | *          | 
 )
 
 -- ui.scd --
@@ -184,11 +214,106 @@ set portal database.library.portal.public
 
 set menu table (
 	category | link | display
-	File | open | "Open List"
-	"Home" | home | "Home"
+	File     | open | "Open List"
+	"Home"   | home  | "Home"
 )
 
 set screen.home table (
 
 )
 
+-- z_queries.scd --
+
+
+set SimpleSelect query(
+	from books b
+	from genre g
+	and eq(b.published, true)
+	select b.id, b.bookname
+	select g.name genrename
+	// "and eq(b.deleted, false)" is automatically added unless otherwise specified.
+)
+set SimpleInsert query(
+	from books b
+	and eq(b.id, 12) // Duplicate this row
+	// "and eq(b.deleted, false)" is automatically added unless otherwise specified.
+	insert b
+	set bookname b.bookname
+	set pages b.pages
+	set genre @genre // This is an input parameter.
+	set published false
+)
+set SimpleUpdate query(
+	from books b
+	and eq(b.id, 12) // Update this row
+	// "and eq(b.deleted, false)" is automatically added unless otherwise specified.
+	update b // or just "update", which would refer to "from books b".
+	set pages @pages // Set pages to a new value from an input parameter.
+)
+set SimpleDelete query(
+	from books b
+	and eq(b.id, 12) // Delete this row
+	// "and eq(b.deleted, false)" is automatically added unless otherwise specified.
+	delete b
+)
+
+// General pattern for queries will be to name query parts, then reference
+// other query query parts from the from clause like any other table.
+// This make essetnally is a combination of table variables and CTEs,
+// implementations may use neither, either, or both.
+//
+// Need a simple syntax to assign columns from one query part to
+// the input parameters of another referenced query part.
+
+set SelectGenre query(
+	from genre g
+	and eq(g.id, @genre)
+	select g.name genrename
+)
+set SelectBook query(
+	from books b
+	from SelectGenre sg
+	and eq(b.published, true)
+	and eq(b.genre, sg.genre)
+	select b.id, b.bookname
+	select sg.genrename
+)
+// or
+set SelectGenre query(
+	from genre g
+	and eq(g.id, @genre)
+	select g.name genrename
+)
+set SelectBook query(
+	from books b
+	and eq(b.published, true)
+	and exists ( // Restrict to a sub-query.
+		from SelectGenre sg
+		and eq(sg.genre, b.genre)
+		and eq(sg.genrename, "History")
+	)
+	select b.id, b.bookname
+)
+
+set FullExample query(
+	set Query1 query(
+		from books b
+		and eq(b.published, true)
+		select b.id, b.bookname
+	)
+	set ViewA query(
+		from books b
+		and eq(b.published, @published)
+		select b.genre
+	)
+	query Query1
+	query(
+		from genre g
+		select g.*
+		and exists (
+			from ViewA v
+			and eq(v.genre, g.id)
+			and eq(v.published, 1)
+		)
+	)
+)

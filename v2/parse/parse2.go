@@ -21,15 +21,18 @@ func (x *X) Find(ref string) *X {
 type Root struct {
 	Schema *X
 	Data   *X
+	Var    *X
 }
 
 func Parse2(pr *parseRoot) (*Root, error) {
 	root := &Root{
 		Schema: &X{},
 		Data:   &X{},
+		Var:    &X{},
 	}
 	currentData := root.Data
 	currentSchema := root.Schema
+	currentVar := root.Var
 	for _, st := range pr.Statements {
 		switch st.Type {
 		default:
@@ -37,6 +40,7 @@ func Parse2(pr *parseRoot) (*Root, error) {
 		case statementContext:
 			currentData = root.Data.relative(st.Identifier)
 			currentSchema = root.Schema.relative(st.Identifier)
+			currentVar = root.Var.relative(st.Identifier)
 		case statementCreate:
 			v := currentData.relative(st.Identifier)
 			if v.Created {
@@ -54,6 +58,13 @@ func Parse2(pr *parseRoot) (*Root, error) {
 			v.Value = da
 		case statementSchema:
 			v := currentSchema.relative(st.Identifier)
+			da, err := DataAtomFromParseValueList(st.Value)
+			if err != nil {
+				return nil, err
+			}
+			v.Value = da
+		case statementVar:
+			v := currentVar.relative(st.Identifier)
 			da, err := DataAtomFromParseValueList(st.Value)
 			if err != nil {
 				return nil, err

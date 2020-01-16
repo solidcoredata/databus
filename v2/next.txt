@@ -1,6 +1,251 @@
-Next
+# Milestones
+
+ * POCv1 - Hard code schema types, output schema, stored procs, front JSON, and back JSON.
+   - Use existing syntax.
+   - Hardcode types.
+   - Ignore concepts like "tags".
+   - Do have portals and queries.
+   - Generate create schema.
+   - Generate create procs.
+   - Generate front end JSON that specifies menus and backend call names.
+   - Generate back end JSON that contains permissions to backend calls and what DB procs they call.
+ * POCv2 - Make simple backend and simple frontend to consume front and back JSON.
+   - We ignore all custom middle code and features (ignore reports, special features)
+   - Backend implments authentication and proc routing, and SQL marshaling.
+   - Front end loads a single JSON file that configures a menu and pages.
+   - Ignore workflow for now. 
+ * POCv3 - Allow defining schema types in configuration.
+   - This will be important for future UI types.
+   - Probably useful for things like tags or table types or similar.
+ * POCv4 - Create system to check-in changes record versions, and make alters.
+   - Detect backwards compatible changes along with migration scripts for each step.
+   - Basic commands to checkpoint changes.
+ * POCv5 - Design simple system(s) to deploy alters and applications in sync with each other.
+   - Rollout in order: DB changes, DB procs, backend code + configuration, Front end code + configuration, Remove Versions N-2 old.
+   - Simple commands to get commands for each of these steps.
+ * POCv6 - Evalutate configuration language for possible improvements.
+
+
+## POCv1
+
+ * Determine exact nature of types for this round.
+ * Determine how to work with the parsed types.
+
+Make types composite. Types are just values.
+
+alias int number(decimal 0) // This is not real syntax (right now), but in backend this is what "int" should evaluate to.
+
+set database.library.table.book table(
+	name   | type
+	id     | key(int)
+	title  | text(100) or text(max 100)
+	price  | decimal(16,2) or decimal(precision 16, scale 2)
+	stock  | number(min 0, max 1000000, decimal 0)
+	price2 | number(min 0.01, max 10000, decimal 2)
+)
+
+// An End Of Statement (EOS) is a ";". These are inserted automatically by the lexer
+// when a non-blank line does not end in a symbol.
+//
+// A table divides cells with a "|".
+//
+// A list divides up items with a ",".
+//
+// A list item is not the same as a table cell.
+
+// Don't worry about extending the model at this time.
+// Yes, we will want to extend the model in the future.
+// But there isn't anything dramatic from adding that design.
+
+schema table schema ( 
+	name | text(min: 1, max: 1000)
+	type | $.type
+	nullable | bool | (default false)
+)
+
+---
+
 
  1. Compile into finished configuration.
  2. Perform a few (not all) checks on configuration.
  3. Turn into a database create script (ignore alter).
  4. Turn into SQL queries.
+
+
+// 1. Setting properties like this is nice in that it left-aligns things well.
+// 2. Setting properties like this is not nice as it seems redundant often.
+// 3. It would be useful to be able to pre-declare a schema.
+// 4. It would be useful to have some limited key value setting.
+// 5. It would be useful to have a table with common columns, then have other columns be key value pairs.
+
+
+schema database struct(
+	db_name key
+	table struct(
+		t_name key
+		column table(
+			name | type |
+			name | key
+			type | type | {required: true}
+			length | int
+		)
+		index table(
+			name | type
+			name | key
+			index | list(
+				// Columns or expressions from this table.
+				context database.:db_name.table.:t_name
+				or(ref , query)
+			) | {required: true}
+			include | list(
+				// Columns or expressions from this table.
+				context database.:db_name.table.:t_name
+				or(ref , query)
+			) | {required: false}
+			where query
+		)
+	)
+)
+// Top level is always a some type of statement action "set", "schema", "var", "create" ...
+// We are making a data object that could be exported as some type of JSON.
+// It is important to be able to divide up the declaration.
+// PERHAPS: only the package that creates an object can modify it.
+// Thus there might be some type of "main" package per database that composes
+// various other sub packages to create the final output.
+// Perhaps, it would be possible to "execute" a query to help construct tagged columns
+// or other normal features of a database.
+
+// WHAT IS THE EXACT SYNTAX?
+
+statement :: statement_type identifier [value]
+
+value :: text | number | bool | - (nil) | struct | list | table | query
+
+struct :: struct([field EOS...])
+
+field :: identifier value
+
+list :: list([context idnetifier EOS] query)
+
+table :: table(...)
+
+// Oh! a table definition should be a different type then a table value.
+// And a list definition should be a different type then a list value.
+// And a struct definition should be different then a struct value.
+// The definition could have the same keyword, but it would have a different meaning under the schema statement.
+// This will only work if the lexer is the same, which I have every reason to think it will be.
+
+schema_struct :: struct([schema_field EOS...])
+
+schema_field :: identifier query_match (type) [ query_value (default)]
+
+schema_list :: list(query_match) // Each element must match the query match.
+
+schema_table :: table(
+	name | type [ | default ] EOS
+	[identifier | query_match [ | query_value ] EOS ...
+)
+
+query :: query(
+	query_type parts...
+
+	from table_name tn
+	from sub_table_name stn eq(stn.parent, tn.id)
+	and eq(tn.cono, 1)
+	select tn.name, stn.item
+)
+
+// This makes sense for the most part. Except for the list and table definitions.
+
+// Once a schema is created, it cannot be modified. BUT, it may be overlayed.
+// For instance, perhaps you put in the postgresql overlay, which may add additional database types:
+// name | type (general DB type) | pg.type (pg specific type) | ms.type
+// Then a viewer may choose an overlay to view the schema from.
+//
+// In a similar way, a portal may be created by copying the database schema over the portal name
+// then filling in the rest of the bits.
+
+schema portal.library portals.create(database.library)
+
+// set portal.library.table.books.columns
+
+// Here is more thinking:
+
+type number property (
+	min number
+	max number
+)
+type text property (
+	length number
+)
+type decimal property (
+	precision number
+	scale number
+)
+
+set database.library.table.book table(
+	name | type
+	id | key
+	title | text(100) or text(length 100)
+	price | decimal(16;2) or decimal(precision 16; scale 2)
+	stock | number(min 0; max 1000000; decimal: 0)
+	price2 | number(min 0; max 10000; decimal: 2)
+)
+
+// Don't worry about extending the model at this time.
+// Yes, we will want to extend the model in the future.
+// But there isn't anything dramatic from adding that design.
+
+schema table schema ( 
+	name | text(min: 1, max: 1000)
+	type | $.type
+	nullable | bool | (default false)
+)
+
+// For now, I could make the "set" identifier arbitrary.
+// What would matter would be the "type" before the "(".
+// Then resolving symbols could be done at parse time with
+// better logic. This would have some limitations, but it
+// would also probably work through the POC release.
+// Make all the schema types pre-declared for POCv1.
+// If we can generate the sample library application with POCv1,
+// then work on moving schema out of pre-declare and introducing
+// custom schemas in POCv2.
+
+// If we modify the query based on which parameters are available, then
+// it is highly likely we would need to create a server to run queries
+// on the database server. But this has its own issues. Let's ignore this
+// for now. It could be that we compile to:
+//  * database schema
+//  * set of stored procedures
+//  * a JSON object that configures the front end
+//  * a JSON object (or Go code) that configures the back end
+
+
+---
+
+schema database.* table(
+	name | type | key
+	name | type | key
+)
+
+schema database.*.table.* table(
+	name | type | key
+	name | type | key
+)
+
+schema database.*.table.*.columns.* table(
+	name | type | key
+	name | type | key
+	default | query
+	key | bool
+	length | number
+)
+
+schema database.*.table.*.indices.* table(
+	name | type | key
+	name | type | key
+	index | list(context ../columns)
+	include | list(context ../columns)
+	where | query
+)

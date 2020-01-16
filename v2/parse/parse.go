@@ -212,7 +212,7 @@ var lexRoot = []lex{
 			switch r {
 			default:
 				return false
-			case '/', '.', '&', '(', ')', '|', ',', '*', '-', '+', '=', ';':
+			case '/', '.', '&', '(', ')', '|', ',', '*', '-', '+', '=', ';', '@':
 				return true
 			}
 		},
@@ -463,6 +463,7 @@ const (
 	statementCreate
 	statementSet
 	statementSchema
+	statementVar
 )
 
 type parsePart interface {
@@ -737,6 +738,8 @@ func (p *parseStatement) AssignNext(t lexToken) (bool, parsePart, error) {
 				p.Type = statementSet
 			case "schema":
 				p.Type = statementSchema
+			case "var":
+				p.Type = statementVar
 			}
 			p.Identifier = &parseFullIdentifier{}
 			return true, p.Identifier, nil
