@@ -63,6 +63,63 @@ schema table schema (
 	nullable | bool | (default false)
 )
 
+
+// Tools may display author table as a child of the book table.
+// Furthermore, when finalizing the table, it will look down the chain
+// of identifiers and look for the first "db" type for the correct database
+// to put it in. Each table will then register itself with the database
+// and in a global table registry, as each database will also register itself
+// globally. Registration will be by types.
+//
+//   var Register = map[string]map[string]Struct // map[type]map[full_identifier]Struct
+//   type Struct interface {
+//       Type() string
+//       // Span()...
+//   }
+//
+// The context identifier, relative identifier, and full identifier need to be
+// accessable in the struct for resolving relative identifiers.
+//
+// In a similar way, Named Filters on a table may be declared in any namespace above
+// the table. Generated or tag named filters may be under "mytagname.first_name_contains".
+// This filter can be referred to as "first_name_contains". If there are any named filters
+// with a conflicting name such as "generated.first_name_contains", then "mytagname.first_name_contains"
+// must be used or it will fail to compile.
+//
+// For tags use a tool to generate the additional columns and named filters.
+
+ 1. Load up every reference in it's own path. Do NOT resolve values.
+ 2. Determine the type of each path.
+    a. It may be declared "struct(type db.table)" directly.
+	b. It may be implied from a parent type:
+	   "db.tables.book" looks at book (no type),
+	   looks at tables (indirect type from db struct type def),
+	   looks at db (type declared).
+ 3. Marshal values of each path into usable types.
+ 4. Validate references within values.
+    a. For POCv1, do this with custom code.
+	b. Later, it could be interesting to turn all values into tables, where each type is a unique table.
+	   Then validation and type checking happen by defining queries on each type.
+	   - https://godoc.org/modernc.org/sqlite
+	   - https://godoc.org/modernc.org/ql
+	   - https://gitlab.com/users/cznic/projects
+
+In SQL Standard, you could look at the number of parts an ID has to determine what
+the left most part was refering to. If more then one, left would be DB or schema, then table, then column.
+In this, I need some way to denote Global ref (first part DB), DB ref (table), Table ref (column).
+
+This can be done by doing some type of reader plus the most recent struct property name. For instance,
+when setting the value "database.library.table.book.column.genre.type" the following could be referenced:
+ * "$table.genre.column.id" would reference the table "genre.id".
+ * "table$.column.other_genre" would reference the column "other_genre" on the same table (yeah, not a good example).
+But there would be one syntax to go down the property before it, allowing going up to a new sibling,
+where the other syntax would go down to the it's own parent.
+
+If types such as "text(max 100)" is just a pointer to the text table where the column "max=100",
+Then this could also be used to create a generic text type. Rather then pointing to an individual "text(100)",
+you could point it to a generial "app1.longtext" type which has a value of "text(max 100)".
+Because these are copy on assignment, changing these values after assignment will be perfectly fine.
+
 ---
 
 

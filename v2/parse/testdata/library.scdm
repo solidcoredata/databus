@@ -1,18 +1,38 @@
 -- setup.scd --
 
-create database.library struct(
+/*
+List of types:
+	db
+	db.table
+	db.table.tags list(identifier)
+	db.table.columns table(name key; type db.type; default db.query)
+	db.table.index table(name key; index list(identifier); include list(idnetifier); where query)
+	db.type.key (db.type)
+	db.type.fk(type db.type, reference identifier)
+	db.type.text (max uint)
+	db.type.int
+	db.type.uint
+	db.type.float
+	db.type.decimal (max uint, decimals uint)
+	db.type.bool
+	db.type.bytes (max uint)
+	db.type.date
+	db.type.datetime
+	db.type.datetimez
+	db.query
+	atom (id identifier, rel identifier, type_name identifier, type_key key)// A "set" statment.
+
+Each type internally creates a new table.
+Initially identifiers are not resolved.
+*/
+
+set database.library struct(
 	type db
 )
 
 -- db.scd --
 
 context database.library
-
-create portal.public db.portal
-create portal.admin db.portal
-
-create table.books db.table
-
 
 set table.book struct(
 	type db.table
@@ -27,29 +47,6 @@ set table.book struct(
 	)
 )
 
-// Tools may display author table as a child of the book table.
-// Furthermore, when finalizing the table, it will look down the chain
-// of identifiers and look for the first "db" type for the correct database
-// to put it in. Each table will then register itself with the database
-// and in a global table registry, as each database will also register itself
-// globally. Registration will be by types.
-//
-//   var Register = map[string]map[string]Struct // map[type]map[full_identifier]Struct
-//   type Struct interface {
-//       Type() string
-//       // Span()...
-//   }
-//
-// The context identifier, relative identifier, and full identifier need to be
-// accessable in the struct for resolving relative identifiers.
-//
-// In a similar way, Named Filters on a table may be declared in any namespace above
-// the table. Generated or tag named filters may be under "mytagname.first_name_contains".
-// This filter can be referred to as "first_name_contains". If there are any named filters
-// with a conflicting name such as "generated.first_name_contains", then "mytagname.first_name_contains"
-// must be used or it will fail to compile.
-//
-// For tags use a tool to generate the additional columns and named filters.
 set table.book.author struct (
 	type db.table
 	columns table (
@@ -74,8 +71,6 @@ var table.books.query.all query(
 	and contains(b.name, .name)
 	select b.name, g.name genre_name
 )
-
-create table.genre
 
 set table.genre struct(
 	tags list(softdelete, audit)
