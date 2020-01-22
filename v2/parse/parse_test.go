@@ -69,4 +69,8 @@ func TestLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, err = Parse2(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 }

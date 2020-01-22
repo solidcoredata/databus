@@ -1,31 +1,5 @@
 -- setup.scd --
 
-/*
-List of types:
-	db
-	db.table
-	db.table.tags list(identifier)
-	db.table.columns table(name key; type db.type; default db.query)
-	db.table.index table(name key; index list(identifier); include list(idnetifier); where query)
-	db.type.key (db.type)
-	db.type.fk(type db.type, reference identifier)
-	db.type.text (max uint)
-	db.type.int
-	db.type.uint
-	db.type.float
-	db.type.decimal (max uint, decimals uint)
-	db.type.bool
-	db.type.bytes (max uint)
-	db.type.date
-	db.type.datetime
-	db.type.datetimez
-	db.query
-	atom (id identifier, rel identifier, type_name identifier, type_key key)// A "set" statment.
-
-Each type internally creates a new table.
-Initially identifiers are not resolved.
-*/
-
 set database.library struct(
 	type db
 )

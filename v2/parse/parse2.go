@@ -1,6 +1,12 @@
 package parse
 
-import "fmt"
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	_ "modernc.org/sqlite"
+)
 
 type X struct {
 	Name    string
@@ -25,6 +31,33 @@ type Root struct {
 }
 
 func Parse2(pr *parseRoot) (*Root, error) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	_, err = db.ExecContext(ctx, `
+create table xdb (
+	name text
+);
+create table xtable (
+	xdb integer references xdb(rowid),
+	name text
+);
+create table xcolumn (
+	xtable integer references xtable(rowid),
+	name text
+);
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, nil
+
 	root := &Root{
 		Schema: &X{},
 		Data:   &X{},

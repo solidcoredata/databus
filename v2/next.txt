@@ -120,6 +120,64 @@ Then this could also be used to create a generic text type. Rather then pointing
 you could point it to a generial "app1.longtext" type which has a value of "text(max 100)".
 Because these are copy on assignment, changing these values after assignment will be perfectly fine.
 
+
+List of types:
+	db
+	db.table
+	db.table.tags list(identifier)
+	db.table.columns table(name key; type db.type; default db.query)
+	db.table.index table(name key; index list(identifier); include list(idnetifier); where query)
+	db.type.key (db.type)
+	db.type.fk(type db.type, reference identifier) // NOTE: I don't think fk should contain a type, but use the reference type.
+	db.type.text (max uint)
+	db.type.int
+	db.type.uint
+	db.type.float
+	db.type.decimal (max uint, decimals uint)
+	db.type.bool
+	db.type.bytes (max uint)
+	db.type.date
+	db.type.datetime
+	db.type.datetimez
+	db.query
+	atom (id identifier, parent ref nullable, rel identifier, type_name identifier, type_key key)// A "set" statment.
+
+Each type internally creates a new table.
+Initially identifiers are not resolved.
+
+Each value in a struct has a parent ref, if lexically contained within that struct.
+This should be used for printing only.
+I'm strongly considering limiting where comments can be placed.
+Comments may reside on a line before statement or the line before a row, or be unconnected if at the top file level.
+Other comment locations will be rejected by the parser.
+Maybe accept end of line comments as well. So there would be two slots for comments on each atom or row:
+Before Comment and Suffix Comment.
+
+// This is a free standing comment.
+
+// These comment lines will get attached
+// To the next set statement as there is not empty line between them.
+set foo table (
+	// The header should probably allow a comment.
+	name | type // This is a suffix comment.
+
+	// You can also write a comment above a data line.
+	my_name | int // Or at the end of a data line.
+)
+
+However this is not allowed:
+set /* invalid comment */ foo table (...)
+
+Multiline comments are allowed, but restricted where they can appear.
+
+Within a table or struct, comments must be attached to a field or row.
+
+### POCv1 Parts
+ 1. Setup an in-memory database that will accept queries.
+ 2. Create a table for each type.
+ 3. Load the parsed statements into the tables.
+ 4. Analize loaded values in tables.
+
 ---
 
 

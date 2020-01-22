@@ -6,6 +6,7 @@ require (
 	github.com/google/go-jsonnet v0.13.0
 	github.com/kardianos/task v0.0.0-20190626060351-af854b0aac74
 	github.com/lib/pq v1.0.0
+	modernc.org/sqlite v1.3.0
 )
 
 go 1.13
