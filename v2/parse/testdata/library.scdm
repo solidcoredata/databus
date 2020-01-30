@@ -244,6 +244,7 @@ set SelectBook query(
 	from SelectGenre sg
 	and eq(b.published, true)
 	and eq(b.genre, sg.genre)
+	opt eq(b.bookname, @Name) // "opt" is like "and", but is only included if all variables are present.
 	select b.id, b.bookname
 	select sg.genrename
 )

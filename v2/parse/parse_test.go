@@ -64,7 +64,7 @@ func TestLibrary(t *testing.T) {
 	ctx := context.Background()
 	root, err := ParseFile(ctx, fr)
 	if root != nil {
-		t.Logf("root: %s\n", root)
+		// t.Logf("root: %s\n", root)
 	}
 	if err != nil {
 		t.Fatal(err)
