@@ -27,7 +27,7 @@ func (x *X) Find(ref string) *X {
 	return nil
 }
 
-type Root struct {
+type xRoot struct {
 	Schema *X
 	Data   *X
 	Var    *X
@@ -47,7 +47,7 @@ func stringID(v string) uint64 {
 	return binary.LittleEndian.Uint64(sum2)
 }
 
-func Parse3(pr *parseRoot) (*Root, error) {
+func Parse3(pr *parseRoot) (*xRoot, error) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		return nil, err
@@ -123,37 +123,8 @@ commit transaction;
 	return nil, nil
 }
 
-func Parse4(pr *parseRoot) (*Root, error) {
-	type Valuer interface {
-		Value() interface{}
-		Span() (start pos, end pos)
-	}
-	type P struct {
-		Key   string
-		Value Valuer
-	}
-	type Z struct {
-		Value      Valuer
-		Index      int32
-		Properties []P // Probably remove.
-	}
-	type QueryLine struct {
-		Valuer
-		Verb   string // from, select, and.
-		Values []Valuer
-	}
-	// Query must itself implement the valuer interface.
-	type Query struct {
-		Valuer
-		Lines []QueryLine
-	}
-	type Root struct {
-		FullPath map[string]*Z
-	}
-	return nil, nil
-}
-func Parse2(pr *parseRoot) (*Root, error) {
-	root := &Root{
+func Parse2(pr *parseRoot) (*xRoot, error) {
+	root := &xRoot{
 		Schema: &X{},
 		Data:   &X{},
 		Var:    &X{},

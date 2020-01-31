@@ -7,7 +7,7 @@ import "io"
 
 type CRDB struct{}
 
-func (CRDB) GenerateSchema(root *Root, w io.Writer) error {
+func (CRDB) GenerateSchema(root *xRoot, w io.Writer) error {
 	// 1. Read database schema.
 	// 2. Load database dependencies and sort dependencies (topological sort, alpha sort inside layers).
 	// 3. Print each table in SQL dialect.

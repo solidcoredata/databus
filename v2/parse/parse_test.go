@@ -64,12 +64,12 @@ func TestLibrary(t *testing.T) {
 	ctx := context.Background()
 	root, err := ParseFile(ctx, fr)
 	if root != nil {
-		// t.Logf("root: %s\n", root)
+		t.Logf("root: %s\n", root)
 	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = Parse2(root)
+	_, err = Parse4(root)
 	if err != nil {
 		t.Fatal(err)
 	}

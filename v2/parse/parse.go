@@ -486,6 +486,12 @@ type parseFullIdentifier struct {
 	Parts []lexToken
 }
 
+func (p *parseFullIdentifier) String() string {
+	buf := &strings.Builder{}
+	p.WriteToBuilder(buf, 0)
+	return buf.String()
+}
+
 /*
 	Table = []Row
 	Row = []Cell
@@ -500,6 +506,17 @@ type parseComplexItem struct {
 
 type parseValueList struct {
 	Values []*parseComplexItem
+}
+
+func (pvl *parseValueList) String() string {
+	if pvl == nil {
+		return ""
+	}
+	if len(pvl.Values) == 0 {
+		return ""
+	}
+	v0 := pvl.Values[0]
+	return v0.Token.Value
 }
 
 type parseRow struct {
