@@ -37,7 +37,7 @@ type FileLoader func(name string, r io.Reader) error
 type file struct {
 	Name string
 }
-type pos struct {
+type Pos struct {
 	File     *file
 	Line     int64 // line in input (starting at 1)
 	LineRune int64 // rune in line (starting at 1)
@@ -52,7 +52,7 @@ type state struct {
 	files []*file
 
 	buf *bufio.Reader
-	pos pos
+	pos Pos
 
 	nextBuf []rune
 	out     *strings.Builder
@@ -67,7 +67,7 @@ func (s *state) load(name string, r io.Reader) error {
 	s.files = append(s.files, f)
 	s.buf = bufio.NewReader(r)
 	s.out = &strings.Builder{}
-	s.pos = pos{
+	s.pos = Pos{
 		File:     f,
 		Line:     1,
 		LineRune: 1,
@@ -76,7 +76,7 @@ func (s *state) load(name string, r io.Reader) error {
 
 	err := s.runLexer()
 	if err == io.EOF {
-		s.emitToken(lexToken{Pos: s.pos, Type: tokenEOF})
+		s.emitToken(lexToken{Start: s.pos, Type: tokenEOF})
 		return nil
 	}
 	if err != nil {
@@ -334,7 +334,7 @@ func (s *state) runLexerItem(c lex, r rune, size int) (bool, error) {
 	}
 	return false, nil
 }
-func (p pos) add(s string) pos {
+func (p Pos) add(s string) Pos {
 	p.Byte += int64(len(s))
 	if n := strings.Count(s, "\n"); n > 0 {
 		p.Line += int64(n)
@@ -375,15 +375,17 @@ func (s *state) emit(t tokenType) {
 	}
 	v := s.out.String()
 
-	s.emitToken(lexToken{Pos: s.pos, Type: t, Value: v})
+	end := s.pos.add(v)
+	s.emitToken(lexToken{Start: s.pos, End: end, Type: t, Value: v})
 
-	s.pos = s.pos.add(v)
+	s.pos = end
 	s.out.Reset()
 	s.nextBuf = s.nextBuf[:0]
 }
 
 type lexToken struct {
-	Pos      pos
+	Start    Pos
+	End      Pos
 	Type     tokenType
 	Value    string
 	Comments *parseCommentBlock
@@ -397,13 +399,12 @@ func (s *state) emitToken(t lexToken) {
 	// These comments are not currently used. Possibly remove fully again.
 	if t.Type == tokenComment {
 		if s.comments == nil {
-			s.comments = &parseCommentBlock{
-				Start: t.Pos,
-			}
+			s.comments = &parseCommentBlock{}
 		}
 		c := &parseCommentLine{
 			Comment: t.Value,
-			Start:   t.Pos,
+			Start:   t.Start,
+			End:     t.End,
 			Suffix:  s.prevEmit.Type != tokenNewline,
 		}
 		if c.Suffix {
@@ -414,10 +415,10 @@ func (s *state) emitToken(t lexToken) {
 		return
 	}
 	if t.Type == tokenNewline {
-		t = lexToken{Pos: t.Pos, Type: tokenEOS}
+		t = lexToken{Start: t.Start, Type: tokenEOS}
 	}
 	if t.Type == tokenSymbol && t.Value == ";" {
-		t = lexToken{Pos: t.Pos, Type: tokenEOS}
+		t = lexToken{Start: t.Start, Type: tokenEOS}
 	}
 	prev := s.prevEmit
 	if s.comments != nil {
@@ -445,7 +446,7 @@ type tokenError struct {
 
 func (err *tokenError) Error() string {
 	t := err.token
-	return fmt.Sprintf("%s:%d:%d %s <%s %q>", t.Pos.File.Name, t.Pos.Line, t.Pos.LineRune, err.msg, t.Type, t.Value)
+	return fmt.Sprintf("%s:%d:%d %s <%s %q>", t.Start.File.Name, t.Start.Line, t.Start.LineRune, err.msg, t.Type, t.Value)
 }
 
 func terr(msg string, t lexToken) error {
@@ -469,6 +470,9 @@ const (
 type parsePart interface {
 	AssignNext(t lexToken) (usedToken bool, next parsePart, err error)
 	WriteToBuilder(buf *strings.Builder, level int)
+	// Child returns the parsePart at index, as well as the relative
+	// path the child is at.
+	Child(index int) (path []string, part parsePart)
 }
 
 type parseRoot struct {
@@ -480,16 +484,31 @@ type parseStatement struct {
 	Identifier *parseFullIdentifier
 	Value      *parseValueList
 	Comments   *parseCommentBlock
+	Start      Pos
+	End        Pos
 }
 
 type parseFullIdentifier struct {
 	Parts []lexToken
+	Start Pos
+	End   Pos
 }
 
 func (p *parseFullIdentifier) String() string {
 	buf := &strings.Builder{}
 	p.WriteToBuilder(buf, 0)
 	return buf.String()
+}
+
+func (p *parseFullIdentifier) IdentifierParts() []string {
+	ret := make([]string, 0, len(p.Parts)+1)
+	for _, token := range p.Parts {
+		switch token.Type {
+		case tokenIdentifier:
+			ret = append(ret, token.Value)
+		}
+	}
+	return ret
 }
 
 /*
@@ -521,18 +540,22 @@ func (pvl *parseValueList) String() string {
 
 type parseRow struct {
 	Cells []*parseValueList
+	Start Pos
+	End   Pos
 }
 type parseTableValue struct {
-	Rows []*parseRow
+	Rows  []*parseRow
+	Start Pos
+	End   Pos
 }
 type parseCommentLine struct {
 	Comment string
 	Suffix  bool // Not a whole line.
-	Start   pos
+	Start   Pos
+	End     Pos
 }
 
 type parseCommentBlock struct {
-	Start  pos
 	Before []*parseCommentLine
 	Suffix []*parseCommentLine
 }
@@ -557,7 +580,10 @@ func (p *parseRoot) AssignNext(t lexToken) (bool, parsePart, error) {
 	case tokenEOS:
 		return true, p, nil
 	case tokenIdentifier:
-		st := &parseStatement{}
+		st := &parseStatement{
+			Start: t.Start,
+			End:   t.End,
+		}
 		p.Statements = append(p.Statements, st)
 
 		return false, st, nil
@@ -580,6 +606,7 @@ func (p *parseFullIdentifier) AssignNext(t lexToken) (bool, parsePart, error) {
 		}
 		prev := p.Parts[len(p.Parts)-1]
 		if t.Type == tokenIdentifier && prev.Type == tokenIdentifier {
+			p.End = prev.End
 			return false, nil, nil
 		}
 		p.Parts = append(p.Parts, t)
@@ -611,7 +638,10 @@ func (p *parseValueList) AssignNext(t lexToken) (bool, parsePart, error) {
 			if len(p.Values) == 0 {
 				return false, nil, terr("must declare type before table or list", t)
 			}
-			table := &parseTableValue{}
+			table := &parseTableValue{
+				Start: t.Start,
+				End:   t.End,
+			}
 			v := &parseComplexItem{
 				Table: table,
 			}
@@ -708,6 +738,7 @@ func (p *parseTableValue) AssignNext(t lexToken) (bool, parsePart, error) {
 			if row != nil && len(row.Cells) == 0 {
 				p.Rows = p.Rows[:len(p.Rows)-1]
 			}
+			p.End = t.End
 			return true, nil, nil
 		case "|", ",":
 			if row == nil {
@@ -758,7 +789,10 @@ func (p *parseStatement) AssignNext(t lexToken) (bool, parsePart, error) {
 			case "var":
 				p.Type = statementVar
 			}
-			p.Identifier = &parseFullIdentifier{}
+			p.Identifier = &parseFullIdentifier{
+				Start: t.Start,
+				End:   t.End,
+			}
 			return true, p.Identifier, nil
 		}
 	}
@@ -819,4 +853,35 @@ fileloop:
 			}
 		}
 	}
+}
+
+func (p *parseRoot) Child(index int) (path []string, part parsePart) {
+	if index < 0 {
+		return nil, nil
+	}
+	if index >= len(p.Statements) {
+		return nil, nil
+	}
+	st := p.Statements[index]
+	return st.Identifier.IdentifierParts(), st.Value
+}
+
+func (p *parseFullIdentifier) Child(index int) (path []string, part parsePart) {
+	return nil, nil
+}
+
+func (p *parseValueList) Child(index int) (path []string, part parsePart) {
+	return nil, nil
+}
+
+func (p *parseRow) Child(index int) (path []string, part parsePart) {
+	return nil, nil
+}
+
+func (p *parseTableValue) Child(index int) (path []string, part parsePart) {
+	return nil, nil
+}
+
+func (p *parseStatement) Child(index int) (path []string, part parsePart) {
+	return nil, nil
 }

@@ -1,19 +1,22 @@
 package parse
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type Valuer interface {
 	Value() Valuer
 	Children() []Valuer
 	Index() int32
-	Span() (start pos, end pos)
+	Span() (start Pos, end Pos)
 }
 
 type VI struct {
 	Valuer
 	val        Valuer
 	index      int32
-	start, end pos
+	start, end Pos
 }
 
 func (vi *VI) Value() Valuer {
@@ -28,9 +31,9 @@ func (vi *VI) Index() int32 {
 	}
 	return vi.index
 }
-func (vi *VI) Span() (pos, pos) {
+func (vi *VI) Span() (Pos, Pos) {
 	if vi == nil {
-		return pos{}, pos{}
+		return Pos{}, Pos{}
 	}
 	return vi.start, vi.end
 }
@@ -43,7 +46,7 @@ type QueryLine struct {
 	Verb   string // from, select, and.
 	Values []Valuer
 
-	start, end pos
+	start, end Pos
 }
 
 func (ql *QueryLine) Value() Valuer {
@@ -52,9 +55,9 @@ func (ql *QueryLine) Value() Valuer {
 func (ql *QueryLine) Index() int32 {
 	return 0
 }
-func (ql *QueryLine) Span() (pos, pos) {
+func (ql *QueryLine) Span() (Pos, Pos) {
 	if ql == nil {
-		return pos{}, pos{}
+		return Pos{}, Pos{}
 	}
 	return ql.start, ql.end
 }
@@ -69,7 +72,7 @@ func (ql *QueryLine) Children() []Valuer {
 type Query struct {
 	Valuer
 	Lines      []*QueryLine
-	start, end pos
+	start, end Pos
 }
 
 func (q *Query) Value() Valuer {
@@ -78,9 +81,9 @@ func (q *Query) Value() Valuer {
 func (q *Query) Index() int32 {
 	return 0
 }
-func (q *Query) Span() (pos, pos) {
+func (q *Query) Span() (Pos, Pos) {
 	if q == nil {
-		return pos{}, pos{}
+		return Pos{}, Pos{}
 	}
 	return q.start, q.end
 }
@@ -100,9 +103,65 @@ type Root struct {
 }
 
 func Parse4(pr *parseRoot) (*Root, error) {
-	for _, st := range pr.Statements {
-		fmt.Printf("%v %v %v\n", st.Type, st.Identifier, st.Value)
+	type ParseContext struct {
+		Context     *parseFullIdentifier
+		ContextText string
+		File        *file
+	}
+	var pctx ParseContext
 
+	for _, st := range pr.Statements {
+		if pctx.File != st.Start.File {
+			pctx = ParseContext{
+				File: st.Start.File,
+			}
+		}
+		if st.Type == statementContext {
+			pctx.Context = st.Identifier
+			buf := &strings.Builder{}
+			buf.WriteString("(")
+			pctx.Context.WriteToBuilder(buf, 0)
+			buf.WriteString(") ")
+			pctx.ContextText = buf.String()
+			continue
+		}
+		if st.Value == nil {
+			fmt.Printf("%v %s%v\n", st.Type, pctx.ContextText, st.Identifier)
+			continue
+		}
+		for vi, v := range st.Value.Values {
+			if v.Token.Type != tokenUnknown {
+				fmt.Printf("%v %s%v [%d]%v (%v)\n", st.Type, pctx.ContextText, st.Identifier, vi, v.Token.Value, v.Token.Type)
+			}
+			if v.Table == nil {
+				continue
+			}
+			t := v.Table
+			vv := &strings.Builder{}
+			cnames := []string{}
+			for ri, row := range t.Rows {
+				key := ""
+				for ci, cell := range row.Cells {
+					_, _ = ci, ri
+					vv.Reset()
+					cell.WriteToBuilder(vv, 0)
+					valueText := vv.String()
+					if ri == 0 {
+						cnames = append(cnames, valueText)
+						continue
+					}
+					if ci == 0 {
+						key = valueText
+					}
+					if len(cnames) >= ci {
+						// TODO(daniel.theophanes): Add a parse error.
+						continue
+					}
+					cn := cnames[ci]
+					fmt.Printf("%v %s%v.%s.%s [%d]%v (%v) %v\n", st.Type, pctx.ContextText, st.Identifier, key, cn, vi, v.Token.Value, v.Token.Type, vv.String())
+				}
+			}
+		}
 	}
 	return nil, nil
 }
