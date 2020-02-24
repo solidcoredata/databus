@@ -8,10 +8,10 @@ set database.library struct(
 
 context database.library
 
-set table.book struct(
-	type db.table
-	tags list(softdelete, audit)
-	columns table(
+// TODO(daniel.theophanes): Try putting the types directly as the value ("db.table" rather then "struct").
+set table.book db.table(
+	tags (softdelete, audit)
+	columns (
 		name      | type                    | default 
 		id        | key(int)                | serial 
 		name      | text(1000)              |

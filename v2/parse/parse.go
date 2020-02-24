@@ -867,21 +867,43 @@ func (p *parseRoot) Child(index int) (path []string, part parsePart) {
 }
 
 func (p *parseFullIdentifier) Child(index int) (path []string, part parsePart) {
+	// Identifier has no children.
 	return nil, nil
 }
 
 func (p *parseValueList) Child(index int) (path []string, part parsePart) {
-	return nil, nil
+	if index < 0 {
+		return nil, nil
+	}
+	if index >= len(p.Values) {
+		return nil, nil
+	}
+	return nil, nil // p.Values[index]
 }
 
 func (p *parseRow) Child(index int) (path []string, part parsePart) {
-	return nil, nil
+	if index < 0 {
+		return nil, nil
+	}
+	if index >= len(p.Cells) {
+		return nil, nil
+	}
+	return nil, p.Cells[index]
 }
 
 func (p *parseTableValue) Child(index int) (path []string, part parsePart) {
-	return nil, nil
+	if index < 0 {
+		return nil, nil
+	}
+	if index >= len(p.Rows) {
+		return nil, nil
+	}
+	return nil, p.Rows[index]
 }
 
 func (p *parseStatement) Child(index int) (path []string, part parsePart) {
-	return nil, nil
+	if index != 0 {
+		return nil, nil
+	}
+	return nil, p.Value
 }

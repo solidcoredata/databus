@@ -31,12 +31,227 @@
  * Determine exact nature of types for this round.
  * Determine how to work with the parsed types.
 
+---
+For the following table definition:
+
+```
+context database.library
+
+set table.book db.table{
+	tags softdelete, audit
+	// This columns won't have a type when initially parsing, but that is okay, the type will be known from db.table.columns type.
+	// We know that this is a table/list because it uses "()" rather then "{}".
+	columns ( 
+		name      | type                    | default 
+		---
+		id        | key(int)                | serial 
+		name      | text(1000)              |
+		pages     | int                     |
+		genre     | fk(int, table.genre.id) |
+		published | bool                    | false
+	)
+}
+```
+
+The following list of facts are declared from the next "set" statement.
+We start in an existing context, then each value has it's own fact row.
+Values that have "sub-values" are naturally a "type", but they are also "values".
+For instance, see "name.type = text" and "genre.type = fk".
+
+```
+database.library.table.book = db.table
+database.library.table.book(db.table). // Common prefix for all of the following:
+	tags[0] = softdelete
+	tags[1] = audit
+	columns.id.type = key
+	columns.id.type(key).type[0] = int
+	columns.id.default = serial
+	columns.name.type = text
+	columns.name.type(text).length[0] = 1000
+	columns.pages.type = int
+	columns.genre.type = fk
+	columns.genre.type(fk).type[0] = int
+	columns.genre.type(fk).reference[1] = table.genre.id
+	columns.published.type = bool
+	columns.published.default = false
+```
+
+Then for the following query:
+
+```
+set SimpleSelect query{
+	from books b
+	from genre g
+	and eq(b.published, true)
+	select b.id, b.bookname
+	select g.name genrename
+	and eq(b.deleted, false)
+}
+```
+
+The "," in the select is a "repeat-verb" in the following items.
+So it means this resolves to:
+
+
+```
+SimpleSelect = query
+SimpleSelect[0] = from
+SimpleSelect[0].from[0] = books
+SimpleSelect[0].from[1] = b
+SimpleSelect[1] = from
+SimpleSelect[1].from[0] = genre
+SimpleSelect[1].from[1] = g
+SimpleSelect[2] = and
+SimpleSelect[2].and = eq
+SimpleSelect[2].and[0].eq[0] = b.published
+SimpleSelect[2].and[0].eq[1] = true
+SimpleSelect[3] = select
+SimpleSelect[3].select[0] = b.id
+SimpleSelect[4] = select
+SimpleSelect[4].select[0] = b.bookname
+SimpleSelect[5] = select
+SimpleSelect[5].select[0] = g.name
+SimpleSelect[5].select[1] = genrename
+SimpleSelect[6] = and
+SimpleSelect[6].and = eq
+SimpleSelect[6].and[0].eq[0] = b.deleted
+SimpleSelect[6].and[0].eq[1] = false
+```
+
+Now we resolve the following:
+
+```
+set SimpleInsert query{
+	from books b
+	and eq(b.id, 12) // Duplicate this row
+	and eq(b.deleted, false)
+	insert b
+	set bookname b.bookname
+	set pages b.pages
+	set genre @genre // This is an input parameter.
+	set published false
+}
+
+=>
+
+SimpleInsert = query
+SimpleInsert[0] = from
+SimpleInsert[0].from[0] = books
+SimpleInsert[0].from[1] = b
+SimpleInsert[1] = and
+SimpleInsert[1].and[0] = eq
+SimpleInsert[1].and[0].eq[0] = b.id
+SimpleInsert[1].and[0].eq[1] = 12
+SimpleInsert[2] = and
+SimpleInsert[2].and[0] = eq
+SimpleInsert[2].and[0].eq[0] = b.deleted
+SimpleInsert[2].and[0].eq[1] = false
+SimpleInsert[3] = insert
+SimpleInsert[3].insert[0] = b
+SimpleInsert[4] = set
+SimpleInsert[4].set[0] = bookname
+SimpleInsert[4].set[1] = b.bookname
+SimpleInsert[5] = set
+SimpleInsert[5].set[0] = pages
+SimpleInsert[5].set[1] = b.pages
+SimpleInsert[6] = set
+SimpleInsert[6].set[0] = genre
+SimpleInsert[6].set[1] = @genre
+SimpleInsert[7] = set
+SimpleInsert[7].set[0] = published
+SimpleInsert[7].set[1] = false
+
+---
+
+set SimpleUpdate query{
+	from books b
+	and eq(b.id, 12)
+	update b
+	set pages @pages
+}
+
+=>
+
+SimpleUpdate = query
+SimpleUpdate[0] = from
+SimpleUpdate[0].from[0] = books
+SimpleUpdate[0].from[1] = b
+SimpleUpdate[1] = and
+SimpleUpdate[1].and[0] = eq
+SimpleUpdate[1].and[0].eq[0] = b.id
+SimpleUpdate[1].and[0].eq[0] = 12
+SimpleUpdate[2] = update
+SimpleUpdate[2].update[0] = b
+SimpleUpdate[3] = set
+SimpleUpdate[3].set[0] = pages
+SimpleUpdate[3].set[1] = @pages
+
+---
+
+set SimpleDelete query{
+	from books b
+	and eq(b.id, 12)
+	delete b
+}
+
+=>
+
+SimpleDelete = query
+SimpleDelete[0] = from
+SimpleDelete[0].from[0] = books
+SimpleDelete[0].from[1] = b
+SimpleDelete[1] = and
+SimpleDelete[1].and[0] = eq
+SimpleDelete[1].and[0].eq[0] = b.id
+SimpleDelete[1].and[0].eq[0] = 12
+SimpleDelete[2] = delete
+SimpleDelete[2].delete[0] = b
+
+```
+
+---
+
+So then lastly, we come to how to specify a schema.
+
+```
+property zero_more,number
+==
+property zero_more
+property number
+```
+
+"number" is any type of number of any size. Is NOT a decimal or float or anything, just a number-like token.
+"int64" is a type of "number", as is "decimal" and "float64".
+"text" is any type of text.
+
+property int64, text
+property text
+
+The following is what a the table schema may look like:
+```
+package db // module solidcoredata.com/c/db
+
+schema table struct {
+	tags arity(zero_more), value(identifier), valid(query{
+		from parent.tags
+		select identifer
+	})
+	columns arity(one_more), children(struct{
+		name key
+		type ...
+		default zero_one
+	})
+}
+```
+---
+
 Make types composite. Types are just values.
 
 alias int number(decimal 0) // This is not real syntax (right now), but in backend this is what "int" should evaluate to.
 
 set database.library.table.book table(
 	name   | type
+	---    | ---
 	id     | key(int)
 	title  | text(100) or text(max 100)
 	price  | decimal(16,2) or decimal(precision 16, scale 2)
@@ -52,6 +267,16 @@ set database.library.table.book table(
 // A list divides up items with a ",".
 //
 // A list item is not the same as a table cell.
+
+Repetition ","
+EOS ";"
+EOV "|"
+EOT " " (any whitespace)
+
+Or maybe "{}" is a struct type, and "()" is a "list/table" type.
+Struct types expect the first value to be the type, then a "," will repeate the type and proceed with additional values.
+Where as a "()" will not expect the repetition / struct fields.
+
 
 // Don't worry about extending the model at this time.
 // Yes, we will want to extend the model in the future.
@@ -364,3 +589,19 @@ schema database.*.table.*.indices.* table(
 	include | list(context ../columns)
 	where | query
 )
+
+---
+
+The difference between XML Schema and SCD is that XML Schema seeks to constrain and validate an XML document.
+SCD also has a schema component, but attempts to make it directly writable, and the validation may also apply
+to an external system, not just the XML Schema. For instance, SCD query may be executed on the SCD document itself,
+or it may be used to transpile the query into a SQL database.
+
+SCD is designed to project definitions out into other systems.
+XML Schema is designed to work within XML documents.
+While the XML Documents are used in other systems, they doen't work together by default. The data and the schema
+are too sharply divided.
+
+In SCD, an int64 may constrain a SCD type or be the type of a SQL Database (bigint) or be an integer in the source UI.
+In fact, this is designed to flow into whatever system it uses.
+
