@@ -231,16 +231,33 @@ The following is what a the table schema may look like:
 ```
 package db // module solidcoredata.com/c/db
 
+schema types struct {
+	identifier // Predefined
+	number     // Predefined
+	text       // Predefined
+	integer number(decimal 0)
+	uint64  integer(max 18446744073709551615, min 0)
+}
+
+schema arity list(zero_more, zero_one, one, one_more)
+
+schema column struct {
+	name key
+	type types
+	default zero_one
+}
+
+schema query struct{
+	from arity(zero_more), type(identifer)
+	select arity(zero_more), type(identifer)
+}
+
 schema table struct {
-	tags arity(zero_more), value(identifier), valid(query{
-		from parent.tags
-		select identifer
+	tags arity(zero_more), type(identifier), valid(query{
+		from arity(zero_more), valid(parent.tags??)
+		select arity(zero_more), type(identifer)
 	})
-	columns arity(one_more), children(struct{
-		name key
-		type ...
-		default zero_one
-	})
+	columns arity(one_more), type(column)
 }
 ```
 ---
