@@ -141,6 +141,45 @@ You may import other packages that extend other packages. However, this doesn't
 globally extend the types, it just extends them for that package. This can be
 done because schemas are a validation, not storage, step.
 
+### Queries
+
+
+```
+set SimpleSelect query{
+	from books b
+	from genre g
+	and eq(b.published, true)
+	select b.id, b.bookname
+	select g.name genrename
+	and eq(b.deleted, false)
+}
+```
+=>
+```
+SimpleSelect = query
+SimpleSelect[0] = from
+SimpleSelect[0].from[0] = books
+SimpleSelect[0].from[1] = b
+SimpleSelect[1] = from
+SimpleSelect[1].from[0] = genre
+SimpleSelect[1].from[1] = g
+SimpleSelect[2] = and
+SimpleSelect[2].and = eq
+SimpleSelect[2].and[0].eq[0] = b.published
+SimpleSelect[2].and[0].eq[1] = true
+SimpleSelect[3] = select
+SimpleSelect[3].select[0] = b.id
+SimpleSelect[4] = select
+SimpleSelect[4].select[0] = b.bookname
+SimpleSelect[5] = select
+SimpleSelect[5].select[0] = g.name
+SimpleSelect[5].select[1] = genrename
+SimpleSelect[6] = and
+SimpleSelect[6].and = eq
+SimpleSelect[6].and[0].eq[0] = b.deleted
+SimpleSelect[6].and[0].eq[1] = false
+```
+
 ## Exmple
 
 Options:
@@ -156,7 +195,24 @@ Then you would:
  2. Decalre types (tables, columns, screens) to the file.
  3. When exporting the data, the public types are then processed. The export can be filtered by type.
 
+
+
 ## Runtime
+
+### Internal
+
+Import all values into a database table similar to:
+```
+create table kv (
+	id integer
+	parent> kv.id
+	sort_order integer
+	name text
+	type_name
+	type_link> kv.id nullable
+	value text
+)
+```
 
 ### Verify
 

@@ -1,0 +1,10 @@
+-- query.scd --
+
+set SimpleSelect query{
+	from books b
+	from genre g
+	and eq(b.published, true)
+	select b.id, b.bookname
+	select g.name genrename
+	and eq(b.deleted, false)
+}
