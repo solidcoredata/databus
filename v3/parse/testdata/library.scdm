@@ -8,3 +8,14 @@ set SimpleSelect query{
 	select g.name genrename
 	and eq(b.deleted, false)
 }
+
+set SimpleInsert query{
+	from books b
+	and eq(b.id, 12) // Duplicate this row
+	and eq(b.deleted, false)
+	insert b
+	set bookname b.bookname
+	set pages b.pages
+	set genre @genre // This is an input parameter.
+	set published false
+}

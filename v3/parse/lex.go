@@ -63,6 +63,7 @@ func (s *state) load(name string, r io.Reader) error {
 			Group: groupStruct,
 		},
 	}
+	var previousToken lexToken
 	for {
 		lt, err := s.runLexer()
 		if err == io.EOF {
@@ -72,6 +73,25 @@ func (s *state) load(name string, r io.Reader) error {
 		if err != nil {
 			return fmt.Errorf("%s:%d:%d %v", s.pos.File.Name, s.pos.Line, s.pos.LineRune, err)
 		}
+		if lt.Type == tokenWhitespace {
+			continue
+		}
+		if lt.Type == tokenSymbol && lt.Value == ";" {
+			lt = lexToken{Start: s.pos, Type: tokenEOS}
+		}
+		if lt.Type == tokenNewline {
+			if previousToken.Type == tokenSymbol {
+				continue
+			}
+			lt = lexToken{Start: s.pos, Type: tokenEOS}
+		}
+		switch previousToken.Type {
+		case tokenEOS, tokenUnknown:
+			switch lt.Type {
+			case tokenEOS:
+				continue
+			}
+		}
 		err = le.EmitToken(lt)
 		if err != nil {
 			if err == io.EOF {
@@ -79,6 +99,7 @@ func (s *state) load(name string, r io.Reader) error {
 			}
 			return err
 		}
+		previousToken = lt
 	}
 	return nil
 }
@@ -143,7 +164,7 @@ var lexRoot = []lex{
 	{
 		is: tokenIdentifier,
 		test: func(r rune) bool {
-			return unicode.IsLetter(r) || r == '_'
+			return unicode.IsLetter(r) || r == '_' || r == '@'
 		},
 		while: func(r rune) bool {
 			return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_'

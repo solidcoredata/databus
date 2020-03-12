@@ -143,18 +143,65 @@ done because schemas are a validation, not storage, step.
 
 ### Queries
 
+Struct
+StructKey
+Value
+List
 
 ```
 set SimpleSelect query{
 	from books b
 	from genre g
-	and eq(b.published, true)
+	and eq (b.published, true)
 	select b.id, b.bookname
 	select g.name genrename
 	and eq(b.deleted, false)
 }
 ```
+file(struct)[0]
+	set(key)[0]
+		SimpleSelect(Value)[0]
+		query(value)[1]
+		(struct)[2]
+			from(key)[0]
+				books(Value)[0]
+				b(Value)[1]
+			from(key)[1]
+				genre(Value)[0]
+				g(Value)[1]
+			and(key)[2]
+				eq(Value)[0]
+				(List)[1]
+					b.published(Value)[0]
+					true(Value)[1]
+			select(key)[3]
+				b.id(Value)[0]
+			select(key)[4]
+				b.bookname(Value)[1]
+			select(key)[5]
+				g.name(Value)[0]
+				genrename(Value)[1]
+			and(key)[6]
+				eq(Value)[0]
+				(List)[1]
+					b.deleted(Value)[0]
+					false(Value)[1]
 =>
+
+[0] = set
+[0]set[0] = SimpleSelect
+[0]set[1] = struct(query)
+[0]set[1]struct(query)[0] = from
+[0]set[1]struct(query)[0]from[0] = books
+[0]set[1]struct(query)[0]from[1] = b
+[0]set[1]struct(query)[1] = from
+[0]set[1]struct(query)[1]from[0] = genre
+[0]set[1]struct(query)[1]from[1] = g
+
+[0] = set
+[0]set[0] = SimpleSelect(Type=query,Group=struct)
+
+
 ```
 SimpleSelect = query
 SimpleSelect[0] = from
