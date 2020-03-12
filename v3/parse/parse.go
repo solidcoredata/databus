@@ -121,46 +121,7 @@ type lineEmitter struct {
 	all []*parseLine
 }
 
-/*
-	EmitToken is called each time a new lexToken is parsed.
-	When sufficent tokens have been parsed a new ParseLine sent to EmitLine.
-
-
-	set SimpleSelect query{
-		from books b
-		from genre g
-		and eq(b.published, true)
-		select b.id, b.bookname
-		select g.name genrename
-		and eq(b.deleted, false)
-	}
-
-	Parent file
-	Index 0
-	Group struct
-	Identifier set
-
-	Parent set
-	Index 0
-	Identifier SimpleSelect
-
-	Parent set
-	Index 1
-	Identifier query
-
-	Parent query
-	Index 0
-	Identifier from
-
-	Parent from
-	Index 0
-	Identifier books
-
-	Parent from
-	Index 1
-	Identifier b
-
-*/
+// EmitToken takes a sequence of tokens and turns them into parseLines.
 func (e *lineEmitter) EmitToken(lt lexToken) error {
 	fmt.Printf("z: %v\n", lt)
 
@@ -171,28 +132,6 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 		}
 	}
 
-	/*
-		tokenNewline
-		tokenWhitespace
-		tokenIdentifier
-		tokenComment
-		tokenSymbol
-		tokenNumber
-		tokenQuote
-		tokenEOF
-		tokenEOS
-
-		switch e.Current.Group {
-		default:
-			return fmt.Errorf("unknown group type: %v", e.Current.Group)
-		case groupStruct:
-			return nil
-		case groupList:
-			return nil
-		case groupValue:
-			return nil
-		}
-	*/
 	switch lt.Type {
 	default:
 		return terr("unknown struct token type", lt)
@@ -262,6 +201,7 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				e.Current.Identifier.Dot = false
 				return nil
 			}
+
 			parentLastChild := e.Current.Parent.LastChild
 			next := &parseLine{
 				Parent:     e.Current.Parent,
@@ -282,6 +222,8 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 	case tokenSymbol:
 		switch lt.Value {
 		default:
+			return terr("unknown symbol type", lt)
+		case ",":
 			return nil
 		case ".":
 			if !e.Current.Identifier.canAddDot() {
