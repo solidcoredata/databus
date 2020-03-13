@@ -123,7 +123,7 @@ type lineEmitter struct {
 
 // EmitToken takes a sequence of tokens and turns them into parseLines.
 func (e *lineEmitter) EmitToken(lt lexToken) error {
-	fmt.Printf("z: %v\n", lt)
+	// fmt.Printf("z: %v\n", lt)
 
 	if e.Current == nil {
 		e.Current = &parseLine{
@@ -136,7 +136,6 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 	default:
 		return terr("unknown struct token type", lt)
 	case tokenEOF:
-		e.printAll()
 		return io.EOF
 	case tokenEOS:
 		switch e.Current.Group {
@@ -283,18 +282,17 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				look = look.Parent
 			}
 			return nil
+		case "|":
+			if e.Current.Parent.Group != groupList {
+				return fmt.Errorf("exptected group list current=%s, parent=%s", e.Current.baseString(false), e.Current.Parent.baseString(false))
+			}
+			return nil
 		}
 	}
 }
 
 func (e *lineEmitter) EmitLine(line *parseLine) error {
 	e.all = append(e.all, line)
-	fmt.Println(line)
+	// fmt.Println(line)
 	return nil
-}
-
-func (e *lineEmitter) printAll() {
-	for _, line := range e.all {
-		fmt.Println(line)
-	}
 }

@@ -19,3 +19,163 @@ set SimpleInsert query{
 	set genre @genre // This is an input parameter.
 	set published false
 }
+
+-- query.scd.golden --
+
+[0]set(key)
+	[0]SimpleSelect
+	[1]query
+	[2](struct)
+		[0]from(key)
+			[0]books
+			[1]b
+		[1]from(key)
+			[0]genre
+			[1]g
+		[2]and(key)
+			[0]eq
+			[1](list)
+				[0]b.published
+				[1]true
+		[3]select(key)
+			[0]b.id
+			[1]b.bookname
+		[4]select(key)
+			[0]g.name
+			[1]genrename
+		[5]and(key)
+			[0]eq
+			[1](list)
+				[0]b.deleted
+				[1]false
+[1]set(key)
+	[0]SimpleInsert
+	[1]query
+	[2](struct)
+		[0]from(key)
+			[0]books
+			[1]b
+		[1]and(key)
+			[0]eq
+			[1](list)
+				[0]b.id
+				[1]12
+		[2]and(key)
+			[0]eq
+			[1](list)
+				[0]b.deleted
+				[1]false
+		[3]insert(key)
+			[0]b
+		[4]set(key)
+			[0]bookname
+			[1]b.bookname
+		[5]set(key)
+			[0]pages
+			[1]b.pages
+		[6]set(key)
+			[0]genre
+			[1]@genre
+		[7]set(key)
+			[0]published
+			[1]false
+
+-- table.scd --
+
+set table.book db.table{
+	tags softdelete, audit
+	// This columns won't have a type when initially parsing, but that is okay, the type will be known from db.table.columns type.
+	// We know that this is a table/list because it uses "()" rather then "{}".
+	column {
+		name      | type                    | default 
+		id        | key(int)                | serial 
+		name      | text(1000)              |
+		pages     | int                     |
+		genre     | fk(int, table.genre.id) |
+		// published | bool                    | false
+	}
+	column {
+		name published
+		type bool
+		default false
+	}
+	data (
+		a | b | c
+		d | e | f
+		// g | h | i
+		// j | k | l
+	)
+	data (g, h, i)
+	data (j, k, l)
+}
+
+-- table.scd.golden --
+
+[1]set(key)
+	[0]table.book
+	[1]db.table
+	[2](struct)
+		[0]column(key)
+			[0](struct)
+				[0]name(key)
+					[0]id
+				[1]type(key)
+					[0]key
+					[1](list)
+						[0]int
+				[2]default(key)
+					[0]serial
+		[1]column(key)
+			[0](struct)
+				[0]name(key)
+					[0]name
+				[1]type(key)
+					[0]text
+					[1](list)
+						[0]1000
+				[2]default(key)
+		[2]column(key)
+			[0](struct)
+				[0]name(key)
+					[0]pages
+				[1]type(key)
+					[0]int
+				[1]default(key)
+		[3]column(key)
+			[0](struct)
+				[0]name(key)
+					[0]genre
+				[1]type(key)
+					[0]fk
+					[1](list)
+						[0]int
+						[1]table.genre.id
+				[2]default(key)
+		[4]column(key)
+			[0](struct)
+				[0]name(key)
+					[0]published
+				[1]type(key)
+					[0]bool
+				[2]default(key)
+					[0]false
+		[5]data(key)
+			[0](list)
+				[0]a
+				[1]b
+				[2]c
+		[6]data(key)
+			[0](list)
+				[0]d
+				[1]e
+				[2]f
+		[7]data(key)
+			[0](list)
+				[0]g
+				[1]h
+				[2]i
+		[8]data(key)
+			[0](list)
+				[0]j
+				[1]k
+				[2]l

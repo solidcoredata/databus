@@ -46,7 +46,7 @@ type state struct {
 	prevEmit lexToken
 }
 
-func (s *state) load(name string, r io.Reader) error {
+func (s *state) load(name string, r io.Reader) (parseLineList, error) {
 	f := &file{Name: name}
 	s.files = append(s.files, f)
 	s.buf = bufio.NewReader(r)
@@ -71,7 +71,7 @@ func (s *state) load(name string, r io.Reader) error {
 			err = nil
 		}
 		if err != nil {
-			return fmt.Errorf("%s:%d:%d %v", s.pos.File.Name, s.pos.Line, s.pos.LineRune, err)
+			return nil, fmt.Errorf("%s:%d:%d %v", s.pos.File.Name, s.pos.Line, s.pos.LineRune, err)
 		}
 		if lt.Type == tokenWhitespace {
 			continue
@@ -95,23 +95,35 @@ func (s *state) load(name string, r io.Reader) error {
 		err = le.EmitToken(lt)
 		if err != nil {
 			if err == io.EOF {
-				return nil
+				return le.all, nil
 			}
-			return err
+			return nil, err
 		}
 		previousToken = lt
 	}
-	return nil
 }
 
-func ParseFile(ctx context.Context, fr FileReader) error {
+type parseLineList []*parseLine
+
+func (list parseLineList) String() string {
+	sb := &strings.Builder{}
+	for i, line := range list {
+		if i != 0 {
+			sb.WriteRune('\n')
+		}
+		sb.WriteString(line.String())
+	}
+	return sb.String()
+}
+
+func ParseFile(ctx context.Context, fileName string, r io.Reader) (parseLineList, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &state{
 		ctx:  ctx,
 		stop: cancel,
 	}
 
-	return fr.Load(s.load)
+	return s.load(fileName, r)
 }
 
 type lexRune func(r rune) bool
