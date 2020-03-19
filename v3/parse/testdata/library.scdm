@@ -86,7 +86,7 @@ set table.book db.table{
 	tags softdelete, audit
 	// This columns won't have a type when initially parsing, but that is okay, the type will be known from db.table.columns type.
 	// We know that this is a table/list because it uses "()" rather then "{}".
-	column {
+	column {|
 		name      | type                    | default 
 		id        | key(int)                | serial 
 		name      | text(1000)              |
@@ -99,14 +99,7 @@ set table.book db.table{
 		type bool
 		default false
 	}
-	data (
-		a | b | c
-		d | e | f
-		// g | h | i
-		// j | k | l
-	)
-	data (g, h, i)
-	data (j, k, l)
+
 }
 
 -- table.scd.golden --
@@ -159,6 +152,19 @@ set table.book db.table{
 					[0]bool
 				[2]default(key)
 					[0]false
+
+-- table.old --
+
+	data (|
+		a | b | c
+		d | e | f
+		// g | h | i
+		// j | k | l
+	)
+	data (g, h, i)
+	data (j, k, l)
+
+
 		[5]data(key)
 			[0](list)
 				[0]a

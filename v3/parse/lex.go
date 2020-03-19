@@ -97,7 +97,7 @@ func (s *state) load(name string, r io.Reader) (parseLineList, error) {
 			if err == io.EOF {
 				return le.all, nil
 			}
-			return nil, err
+			return le.all, err
 		}
 		previousToken = lt
 	}

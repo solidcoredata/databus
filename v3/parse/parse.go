@@ -1,7 +1,6 @@
 package parse
 
 import (
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -12,11 +11,14 @@ import (
 type groupType int
 
 const (
-	groupUnknown groupType = iota
-	groupStruct
-	groupStructKey
-	groupList
-	groupValue
+	groupUnknown   groupType = iota
+	groupStruct              // At the "{".
+	groupStructKey           // First identifier in a statement within a struct.
+	groupList                // At the "(".
+	groupValue               // Any valued object.
+	groupTable               // At the "{|"
+	groupTableHead           // First line of the table.
+	groupTableData           // All lines except the first line.
 )
 
 type parseLine struct {
@@ -25,6 +27,9 @@ type parseLine struct {
 	Index      int64
 	Group      groupType
 	Identifier parseIdentifier
+	Sent       bool
+
+	Header []parseIdentifier
 }
 
 func (line *parseLine) String() string {
@@ -44,8 +49,8 @@ func (line *parseLine) baseString(indent bool) string {
 		chain = append(chain, cp)
 		cp = cp.Parent
 	}
-	if indent {
-		sb.WriteString(strings.Repeat("\t", len(chain)-2))
+	if indent && len(chain) > 1 {
+		sb.WriteString(strings.Repeat("\t", len(chain)-1))
 	}
 
 	if false {
@@ -126,18 +131,21 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 	// fmt.Printf("z: %v\n", lt)
 
 	if e.Current == nil {
-		e.Current = &parseLine{
-			Parent: e.Root,
-			Group:  e.Root.Group,
-		}
+		e.Current = e.Root
 	}
 
 	switch lt.Type {
 	default:
 		return terr("unknown struct token type", lt)
 	case tokenEOF:
+		if err := e.EmitLine(e.Current); err != nil {
+			return err
+		}
 		return io.EOF
 	case tokenEOS:
+		if err := e.EmitLine(e.Current); err != nil {
+			return err
+		}
 		switch e.Current.Group {
 		default:
 			panic("unknown group type")
@@ -161,7 +169,9 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				next.Index = e.Current.LastChild.Index + 1
 			}
 			e.Current.LastChild = next
-			e.EmitLine(next)
+			if err := e.EmitLine(next); err != nil {
+				return err
+			}
 
 			e.Current = next
 			return nil
@@ -175,7 +185,6 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				next.Index = e.Current.LastChild.Index + 1
 			}
 			e.Current.LastChild = next
-			e.EmitLine(next)
 
 			e.Current = next
 			return nil
@@ -190,7 +199,9 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				next.Index = lastChild.Index + 1
 			}
 			e.Current.LastChild = next
-			e.EmitLine(next)
+			if err := e.EmitLine(next); err != nil {
+				return err
+			}
 
 			e.Current = next
 			return nil
@@ -200,7 +211,6 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				e.Current.Identifier.Dot = false
 				return nil
 			}
-
 			parentLastChild := e.Current.Parent.LastChild
 			next := &parseLine{
 				Parent:     e.Current.Parent,
@@ -211,7 +221,9 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				next.Index = parentLastChild.Index + 1
 			}
 			e.Current.Parent.LastChild = next
-			e.EmitLine(next)
+			if err := e.EmitLine(next); err != nil {
+				return err
+			}
 
 			e.Current = next
 			return nil
@@ -223,6 +235,9 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 		default:
 			return terr("unknown symbol type", lt)
 		case ",":
+			if err := e.EmitLine(e.Current); err != nil {
+				return err
+			}
 			return nil
 		case ".":
 			if !e.Current.Identifier.canAddDot() {
@@ -231,21 +246,31 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			e.Current.Identifier.Dot = true
 			return nil
 		case "{":
+			// if err := e.EmitLine(e.Current); err != nil {
+			// 	return err
+			// }
 			next := &parseLine{
 				Parent: e.Current.Parent,
 				Group:  groupStruct,
 				Index:  e.Current.Index + 1,
 			}
-			e.EmitLine(next)
+			if err := e.EmitLine(next); err != nil {
+				return err
+			}
 			e.Current = next
 			return nil
 		case "(":
+			// if err := e.EmitLine(e.Current); err != nil {
+			// 	return err
+			// }
 			next := &parseLine{
 				Parent: e.Current.Parent,
 				Group:  groupList,
 				Index:  e.Current.Index + 1,
 			}
-			e.EmitLine(next)
+			if err := e.EmitLine(next); err != nil {
+				return err
+			}
 			e.Current = next
 			return nil
 		case "}":
@@ -255,7 +280,10 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				default:
 					panic("unknown group type")
 				case groupStruct:
-					e.Current = look.Parent.Parent
+					e.Current = look.Parent
+					if e.Current != nil && e.Current.Parent != nil {
+						e.Current = e.Current.Parent
+					}
 					return nil
 				case groupList:
 					return terr("expected '}' not ')'", lt)
@@ -283,8 +311,25 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			}
 			return nil
 		case "|":
-			if e.Current.Parent.Group != groupList {
-				return fmt.Errorf("exptected group list current=%s, parent=%s", e.Current.baseString(false), e.Current.Parent.baseString(false))
+			switch e.Current.Group {
+			default:
+				panic("unknown group type")
+			case groupStruct: // Transition to table header.
+				e.Current.Group = groupTable
+			case groupTable:
+				return terr(`unexpected "|"`, lt)
+			case groupValue:
+				parent := e.Current.Parent
+				switch parent.Group {
+				default:
+					panic("unknown group type")
+				case groupTable:
+					return terr("unexpected value after table expected EOS", lt)
+				case groupTableHead:
+					parent.Header = append(parent.Header, e.Current.Identifier)
+				case groupTableData:
+					//
+				}
 			}
 			return nil
 		}
@@ -292,6 +337,16 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 }
 
 func (e *lineEmitter) EmitLine(line *parseLine) error {
+	// Never emit the file struct.
+	if line.Parent == nil {
+		return nil
+	}
+	if line.Sent == true {
+		// return fmt.Errorf("line sent twice: %v", line)
+		return nil
+	}
+	line.Sent = true
+
 	e.all = append(e.all, line)
 	// fmt.Println(line)
 	return nil

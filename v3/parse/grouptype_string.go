@@ -13,11 +13,14 @@ func _() {
 	_ = x[groupStructKey-2]
 	_ = x[groupList-3]
 	_ = x[groupValue-4]
+	_ = x[groupTable-5]
+	_ = x[groupTableHead-6]
+	_ = x[groupTableData-7]
 }
 
-const _groupType_name = "UnknownStructStructKeyListValue"
+const _groupType_name = "UnknownStructStructKeyListValueTableTableHeadTableData"
 
-var _groupType_index = [...]uint8{0, 7, 13, 22, 26, 31}
+var _groupType_index = [...]uint8{0, 7, 13, 22, 26, 31, 36, 45, 54}
 
 func (i groupType) String() string {
 	if i < 0 || i >= groupType(len(_groupType_index)-1) {

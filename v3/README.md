@@ -148,6 +148,24 @@ StructKey
 Value
 List
 
+States:
+ * Just-In Struct. Expect:
+   - Struct Key
+ * Parsing Struct Key. Expect:
+   - Extend Struct Key
+   - Next Value
+   - Next List
+   - Next Struct
+ * Value. Expect:
+   - Extend Value
+   - Next Value
+   - Next List
+   - Next Struct
+ * Just-In List. Expect:
+   - Next Value
+   - Next List
+   - Next Struct
+
 ```
 set SimpleSelect query{
 	from books b
