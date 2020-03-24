@@ -11,14 +11,15 @@ import (
 type groupType int
 
 const (
-	groupUnknown   groupType = iota
-	groupStruct              // At the "{".
-	groupStructKey           // First identifier in a statement within a struct.
-	groupList                // At the "(".
-	groupValue               // Any valued object.
-	groupTable               // At the "{|"
-	groupTableHead           // First line of the table.
-	groupTableData           // All lines except the first line.
+	groupUnknown     groupType = iota
+	groupStruct                // At the "{".
+	groupStructKey             // First identifier in a statement within a struct.
+	groupStructValue           // Struct Value, after the key.
+	groupList                  // At the "(".
+	groupListValue             // Any valued object.
+	groupTable                 // At the "{|"
+	groupTableHead             // First line of the table.
+	groupTableData             // All lines except the first line.
 )
 
 type parseLine struct {
@@ -119,6 +120,75 @@ func (id parseIdentifier) write(sb *strings.Builder) int {
 	return total
 }
 
+type match struct {
+	token lexToken
+}
+
+func (m *match) Value() bool {
+	// Value = tokenIdentifier, tokenNumber, tokenText, ".", "(", "{".
+	switch m.token.Type {
+	default:
+		return false
+	case tokenIdentifier, tokenNumber, tokenQuote:
+		return true
+	case tokenSymbol:
+		switch m.token.lexTokenValue {
+		default:
+			return false
+		case vPeriod:
+			return true
+		case vListStart:
+			return true
+		case vStructStart:
+			return true
+		}
+	}
+}
+
+func (m *match) Identifier() bool {
+	// Identifier = tokenIdentifier, tokenNumber, tokenText
+	switch m.token.Type {
+	default:
+		return false
+	case tokenIdentifier, tokenNumber, tokenQuote:
+		return true
+	}
+}
+
+func (m *match) Comma() bool {
+	switch m.token.lexTokenValue {
+	default:
+		return false
+	case vComma:
+		return true
+	}
+}
+
+func (m *match) ListEnd() bool {
+	switch m.token.lexTokenValue {
+	default:
+		return false
+	case vListEnd:
+		return true
+	}
+}
+func (m *match) StructEnd() bool {
+	switch m.token.lexTokenValue {
+	default:
+		return false
+	case vStructEnd:
+		return true
+	}
+}
+func (m *match) EOS() bool {
+	switch m.token.lexTokenValue {
+	default:
+		return false
+	case vEOS:
+		return true
+	}
+}
+
 type lineEmitter struct {
 	Root    *parseLine
 	Current *parseLine
@@ -126,217 +196,127 @@ type lineEmitter struct {
 	all []*parseLine
 }
 
-// EmitToken takes a sequence of tokens and turns them into parseLines.
-func (e *lineEmitter) EmitToken(lt lexToken) error {
-	// fmt.Printf("z: %v\n", lt)
-
-	if e.Current == nil {
-		e.Current = e.Root
-	}
-
+func (e *lineEmitter) eatIdentifier(lt lexToken, newValueGroup groupType) (next *parseLine, err error) {
 	switch lt.Type {
 	default:
-		return terr("unknown struct token type", lt)
-	case tokenEOF:
-		if err := e.EmitLine(e.Current); err != nil {
-			return err
-		}
-		return io.EOF
-	case tokenEOS:
-		if err := e.EmitLine(e.Current); err != nil {
-			return err
-		}
-		switch e.Current.Group {
-		default:
-			panic("unknown group type")
-		case groupStruct, groupList, groupStructKey:
-			return nil
-		case groupValue:
-			e.Current = e.Current.Parent.Parent
-			return nil
-		}
-	case tokenIdentifier, tokenQuote, tokenNumber:
-		switch e.Current.Group {
-		default:
-			panic("unknown group type")
-		case groupStruct:
-			next := &parseLine{
-				Parent:     e.Current,
-				Group:      groupStructKey,
-				Identifier: parseIdentifier{Parts: []lexToken{lt}},
-			}
-			if e.Current.LastChild != nil {
-				next.Index = e.Current.LastChild.Index + 1
-			}
-			e.Current.LastChild = next
-			if err := e.EmitLine(next); err != nil {
-				return err
-			}
-
-			e.Current = next
-			return nil
-		case groupList:
-			next := &parseLine{
-				Parent:     e.Current,
-				Group:      groupValue,
-				Identifier: parseIdentifier{Parts: []lexToken{lt}},
-			}
-			if e.Current.LastChild != nil {
-				next.Index = e.Current.LastChild.Index + 1
-			}
-			e.Current.LastChild = next
-
-			e.Current = next
-			return nil
-		case groupStructKey:
-			lastChild := e.Current.LastChild
-			next := &parseLine{
-				Parent:     e.Current,
-				Group:      groupValue,
-				Identifier: parseIdentifier{Parts: []lexToken{lt}},
-			}
-			if lastChild != nil {
-				next.Index = lastChild.Index + 1
-			}
-			e.Current.LastChild = next
-			if err := e.EmitLine(next); err != nil {
-				return err
-			}
-
-			e.Current = next
-			return nil
-		case groupValue:
-			if e.Current.Identifier.canAppend() {
-				e.Current.Identifier.Parts = append(e.Current.Identifier.Parts, lt)
-				e.Current.Identifier.Dot = false
-				return nil
-			}
-			parentLastChild := e.Current.Parent.LastChild
-			next := &parseLine{
-				Parent:     e.Current.Parent,
-				Group:      groupValue,
-				Identifier: parseIdentifier{Parts: []lexToken{lt}},
-			}
-			if parentLastChild != nil {
-				next.Index = parentLastChild.Index + 1
-			}
-			e.Current.Parent.LastChild = next
-			if err := e.EmitLine(next); err != nil {
-				return err
-			}
-
-			e.Current = next
-			return nil
-		}
-	case tokenComment:
-		return nil
+		panic("invalid state: mismatch between consume and match Type")
 	case tokenSymbol:
-		switch lt.Value {
+		switch lt.lexTokenValue {
 		default:
-			return terr("unknown symbol type", lt)
-		case ",":
-			if err := e.EmitLine(e.Current); err != nil {
-				return err
-			}
-			return nil
-		case ".":
-			if !e.Current.Identifier.canAddDot() {
-				return terr(`unexpected "."`, lt)
-			}
-			e.Current.Identifier.Dot = true
-			return nil
-		case "{":
-			// if err := e.EmitLine(e.Current); err != nil {
-			// 	return err
-			// }
-			next := &parseLine{
-				Parent: e.Current.Parent,
-				Group:  groupStruct,
-				Index:  e.Current.Index + 1,
-			}
-			if err := e.EmitLine(next); err != nil {
-				return err
-			}
-			e.Current = next
-			return nil
-		case "(":
-			// if err := e.EmitLine(e.Current); err != nil {
-			// 	return err
-			// }
-			next := &parseLine{
-				Parent: e.Current.Parent,
-				Group:  groupList,
-				Index:  e.Current.Index + 1,
-			}
-			if err := e.EmitLine(next); err != nil {
-				return err
-			}
-			e.Current = next
-			return nil
-		case "}":
-			look := e.Current
-			for look != nil {
-				switch look.Group {
-				default:
-					panic("unknown group type")
-				case groupStruct:
-					e.Current = look.Parent
-					if e.Current != nil && e.Current.Parent != nil {
-						e.Current = e.Current.Parent
-					}
-					return nil
-				case groupList:
-					return terr("expected '}' not ')'", lt)
-				case groupStructKey, groupValue:
-					// Nothing.
-				}
-				look = look.Parent
-			}
-			return nil
-		case ")":
-			look := e.Current
-			for look != nil {
-				switch look.Group {
-				default:
-					panic("unknown group type")
-				case groupStruct:
-					return terr("expected ')' not '}'", lt)
-				case groupList:
-					e.Current = look.Parent.Parent
-					return nil
-				case groupStructKey, groupValue:
-					// Nothing.
-				}
-				look = look.Parent
-			}
-			return nil
-		case "|":
-			switch e.Current.Group {
+			panic("invalid state: mismatch between consume and match TokenValue")
+		case vPeriod:
+			switch {
 			default:
-				panic("unknown group type")
-			case groupStruct: // Transition to table header.
-				e.Current.Group = groupTable
-			case groupTable:
-				return terr(`unexpected "|"`, lt)
-			case groupValue:
-				parent := e.Current.Parent
-				switch parent.Group {
-				default:
-					panic("unknown group type")
-				case groupTable:
-					return terr("unexpected value after table expected EOS", lt)
-				case groupTableHead:
-					parent.Header = append(parent.Header, e.Current.Identifier)
-				case groupTableData:
-					//
-				}
+				err = terr(`unexpected "."`, lt)
+				return
+			case e.Current.Identifier.canAddDot():
+				e.Current.Identifier.Dot = true
 			}
-			return nil
+		case vStructStart:
+			next = e.Current
+			e.Current = &parseLine{
+				Parent: next.Parent,
+				Index:  next.Index + 1,
+				Group:  groupStruct,
+			}
+		case vListStart:
+			next = e.Current
+			e.Current = &parseLine{
+				Parent: next.Parent,
+				Index:  next.Index + 1,
+				Group:  groupList,
+			}
+		}
+	case tokenIdentifier, tokenNumber, tokenQuote:
+		switch {
+		default:
+			// New value under same parent.
+			next = e.Current
+			e.Current = &parseLine{
+				Parent:     next.Parent,
+				Index:      next.Index + 1,
+				Group:      newValueGroup, // Unique in setup.
+				Identifier: parseIdentifier{Parts: []lexToken{lt}},
+			}
+		case e.Current.Identifier.canAppend():
+			e.Current.Identifier.Parts = append(e.Current.Identifier.Parts, lt)
+			e.Current.Identifier.Dot = false
 		}
 	}
+	return
+}
+
+// EmitToken takes a sequence of tokens and turns them into parseLines.
+func (e *lineEmitter) EmitToken(lt lexToken) error {
+	// Identifier = tokenIdentifier, tokenNumber, tokenText
+	// Value = tokenIdentifier, tokenNumber, tokenText, ".", "(", "{".
+
+	if lt.lexTokenValue == vEOF {
+		if e.Current == e.Root {
+			return io.EOF
+		}
+		return terr("unexpected end of file", lt)
+	}
+
+	m := &match{
+		token: lt,
+	}
+	var (
+		next *parseLine
+		err  error
+	)
+
+	switch e.Current.Group {
+	default:
+		panic("uknown group type")
+	case groupList:
+		// Value, ")", EOS.
+		switch {
+		default:
+			return terr("unexpected list token", lt)
+		case m.Value():
+			next = e.Current
+			e.Current = &parseLine{
+				Parent:     next,
+				Group:      groupListValue,
+				Identifier: parseIdentifier{Parts: []lexToken{lt}},
+			}
+		case m.ListEnd():
+		case m.EOS():
+		}
+	case groupListValue:
+		// Value, ",", ")", EOS.
+		switch {
+		default:
+			return terr("unexpected list token", lt)
+		case m.Value():
+			next, err = e.eatIdentifier(lt, groupListValue)
+		case m.Comma(), m.EOS():
+		case m.ListEnd():
+		}
+	case groupStruct:
+		// Identifier, "}", "|".
+	case groupStructKey:
+		// Value.
+	case groupStructValue:
+		// Value, ",", "}" EOS.
+	case groupTable:
+		// Identifier, "}", EOS.
+	case groupTableHead:
+		// Identifier, "}", "|", EOS.
+	case groupTableData:
+		// Value, "}", "|", EOS.
+	}
+
+	e.EmitLine(next)
+
+	return err
 }
 
 func (e *lineEmitter) EmitLine(line *parseLine) error {
+	if line == nil {
+		return nil
+	}
 	// Never emit the file struct.
 	if line.Parent == nil {
 		return nil

@@ -63,11 +63,13 @@ func (s *state) load(name string, r io.Reader) (parseLineList, error) {
 			Group: groupStruct,
 		},
 	}
+	le.Current = le.Root
+
 	var previousToken lexToken
 	for {
 		lt, err := s.runLexer()
 		if err == io.EOF {
-			lt = lexToken{Start: s.pos, Type: tokenEOF}
+			lt = lexToken{Start: s.pos, lexTokenValue: vEOF}
 			err = nil
 		}
 		if err != nil {
@@ -77,13 +79,13 @@ func (s *state) load(name string, r io.Reader) (parseLineList, error) {
 			continue
 		}
 		if lt.Type == tokenSymbol && lt.Value == ";" {
-			lt = lexToken{Start: s.pos, Type: tokenEOS}
+			lt = lexToken{Start: s.pos, lexTokenValue: vEOS}
 		}
 		if lt.Type == tokenNewline {
 			if previousToken.Type == tokenSymbol {
 				continue
 			}
-			lt = lexToken{Start: s.pos, Type: tokenEOS}
+			lt = lexToken{Start: s.pos, lexTokenValue: vEOS}
 		}
 		switch previousToken.Type {
 		case tokenEOS, tokenUnknown:
@@ -152,6 +154,18 @@ const (
 	tokenQuote
 	tokenEOF
 	tokenEOS
+)
+
+var (
+	vListStart   = lexTokenValue{Type: tokenSymbol, Value: "("}
+	vListEnd     = lexTokenValue{Type: tokenSymbol, Value: ")"}
+	vStructStart = lexTokenValue{Type: tokenSymbol, Value: "{"}
+	vStructEnd   = lexTokenValue{Type: tokenSymbol, Value: "}"}
+	vPeriod      = lexTokenValue{Type: tokenSymbol, Value: "."}
+	vComma       = lexTokenValue{Type: tokenSymbol, Value: ","}
+	vPipe        = lexTokenValue{Type: tokenSymbol, Value: "|"}
+	vEOS         = lexTokenValue{Type: tokenEOS}
+	vEOF         = lexTokenValue{Type: tokenEOF}
 )
 
 var lexRoot = []lex{
@@ -381,7 +395,7 @@ func (s *state) emit(t tokenType) lexToken {
 	v := s.out.String()
 
 	end := s.pos.add(v)
-	lt := lexToken{Start: s.pos, End: end, Type: t, Value: v}
+	lt := lexToken{Start: s.pos, End: end, lexTokenValue: lexTokenValue{Type: t, Value: v}}
 
 	s.pos = end
 	s.out.Reset()
@@ -389,11 +403,15 @@ func (s *state) emit(t tokenType) lexToken {
 	return lt
 }
 
+type lexTokenValue struct {
+	Type  tokenType
+	Value string
+}
+
 type lexToken struct {
 	Start Pos
 	End   Pos
-	Type  tokenType
-	Value string
+	lexTokenValue
 }
 
 func (lt lexToken) String() string {
