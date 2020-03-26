@@ -75,6 +75,9 @@ func (s *state) load(name string, r io.Reader) (parseLineList, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%s:%d:%d %v", s.pos.File.Name, s.pos.Line, s.pos.LineRune, err)
 		}
+		if lt.Type == tokenComment {
+			continue
+		}
 		if lt.Type == tokenWhitespace {
 			continue
 		}

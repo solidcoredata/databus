@@ -113,8 +113,8 @@ func TestLibrary(t *testing.T) {
 					if g == w {
 						t.Log(w)
 					} else {
-						t.Log("-", w)
-						t.Log("+", g)
+						t.Log("-", g)
+						t.Log("+", w)
 					}
 				}
 				if err != nil {

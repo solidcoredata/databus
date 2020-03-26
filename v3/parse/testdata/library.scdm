@@ -39,11 +39,12 @@ set SimpleInsert query{
 				[1]true
 		[3]select(key)
 			[0]b.id
-			[1]b.bookname
 		[4]select(key)
+			[0]b.bookname
+		[5]select(key)
 			[0]g.name
 			[1]genrename
-		[5]and(key)
+		[6]and(key)
 			[0]eq
 			[1](list)
 				[0]b.deleted
