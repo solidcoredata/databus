@@ -97,31 +97,32 @@ func TestLibrary(t *testing.T) {
 			}
 			got := strings.TrimSpace(list.String())
 			want := load(name)
-			if got != want {
-				t.Logf("got\n%v\n; want\n%v\n", got, want)
-				t.Log("======")
-				gg, ww := strings.Split(got, "\n"), strings.Split(want, "\n")
-				min := len(gg)
-				if len(ww) < min {
-					min = len(ww)
-				}
-				if len(ww) != len(gg) {
-					t.Logf("got %d lines; want %d lines", len(gg), len(ww))
-				}
-				for i := 0; i < min; i++ {
-					g, w := gg[i], ww[i]
-					if g == w {
-						t.Log(w)
-					} else {
-						t.Log("-", g)
-						t.Log("+", w)
-					}
-				}
-				if err != nil {
-					t.Fatal(err)
-				}
-				t.Fatal("incorrect line")
+			if got == want {
+				return
 			}
+			t.Logf("got\n%v\n; want\n%v\n", got, want)
+			t.Log("======")
+			gg, ww := strings.Split(got, "\n"), strings.Split(want, "\n")
+			min := len(gg)
+			if len(ww) < min {
+				min = len(ww)
+			}
+			if len(ww) != len(gg) {
+				t.Logf("got %d lines; want %d lines", len(gg), len(ww))
+			}
+			for i := 0; i < min; i++ {
+				g, w := gg[i], ww[i]
+				if g == w {
+					t.Log(w)
+				} else {
+					t.Log("-", g)
+					t.Log("+", w)
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Fatal("incorrect line")
 		})
 	}
 }

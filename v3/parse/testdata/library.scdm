@@ -1,23 +1,23 @@
 -- query.scd --
 
 set SimpleSelect query{
-	from books b
-	from genre g
-	and eq(b.published, true)
+	from   books b
+	from   genre g
+	and    eq(b.published, true)
 	select b.id, b.bookname
 	select g.name genrename
-	and eq(b.deleted, false)
+	and    eq(b.deleted, false)
 }
 
 set SimpleInsert query{
-	from books b
-	and eq(b.id, 12) // Duplicate this row
-	and eq(b.deleted, false)
+	from   books b
+	and    eq(b.id, 12) // Duplicate this row
+	and    eq(b.deleted, false)
 	insert b
-	set bookname b.bookname
-	set pages b.pages
-	set genre @genre // This is an input parameter.
-	set published false
+	set    bookname  b.bookname
+	set    pages     b.pages
+	set    genre     @genre // This is an input parameter.
+	set    published false
 }
 
 -- query.scd.golden --
@@ -87,15 +87,16 @@ set table.book db.table{
 	tags softdelete, audit
 	// This columns won't have a type when initially parsing, but that is okay, the type will be known from db.table.columns type.
 	// We know that this is a table/list because it uses "()" rather then "{}".
-	column {|
+	column db.column{|
 		name      | type                    | default 
-		id        | key(int)                | serial 
-		name      | text(1000)              |
-		pages     | int                     |
-		genre     | fk(int, table.genre.id) |
+		//id        | key(int)                | serial 
+		//name      | text(1000)              | X
+		pages     | int                     | X
+		pages2     | int2                     | X2
+		//genre     | fk(int, table.genre.id) | X
 		// published | bool                    | false
 	}
-	column {
+	column db.column{
 		name published
 		type bool
 		default false

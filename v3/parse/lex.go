@@ -85,7 +85,8 @@ func (s *state) load(name string, r io.Reader) (parseLineList, error) {
 			lt = lexToken{Start: s.pos, lexTokenValue: vEOS}
 		}
 		if lt.Type == tokenNewline {
-			if previousToken.Type == tokenSymbol {
+			switch previousToken.lexTokenValue {
+			case vStructStart, vListStart: // , vStructEnd, vListEnd:
 				continue
 			}
 			lt = lexToken{Start: s.pos, lexTokenValue: vEOS}
