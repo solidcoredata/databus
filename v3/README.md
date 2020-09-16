@@ -17,6 +17,9 @@ the value may omit the type name and simply write `(...)` or `{...}`.
 Every value is assigned to both a identifier path and an index (like a sorted map). Furthermore
 each value has a type.
 
+A table is a varient of a struct, really a repeating struct. Because of this, the table
+syntax can only be used where it is the terminal statement in a value (list value or struct value).
+
 ### Lists
 
 There are two types of lists: simple lists and tables.

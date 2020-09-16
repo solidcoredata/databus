@@ -86,6 +86,8 @@ set SimpleInsert query {
 
 set table.book db.table {
 	tags softdelete, audit
+	column db.column{|
+	}
 	column db.column {name published; type bool; default false;}
 	column db.column {name "read only"; type bool; default false;}
 }
@@ -102,18 +104,12 @@ set table.book db.table {
 			[0]audit
 		[2]column(key)
 			[0]db.column
-			[1](struct)
-				[0]name(key)
-					[0]published
-				[1]type(key)
-					[0]bool
-				[2]default(key)
-					[0]false
+			[1]
 		[3]column(key)
 			[0]db.column
 			[1](struct)
 				[0]name(key)
-					[0]"read only"
+					[0]published
 				[1]type(key)
 					[0]bool
 				[2]default(key)
@@ -123,8 +119,15 @@ set table.book db.table {
 
 set table.book db.table{
 	tags softdelete, audit
-	column db.column {name pages; type int; default X;}
-	column db.column {name published; type bool; default false;}
+	column db.column{|
+		name      | type                    | default
+		pages     | int                     | X
+	}
+	column db.column{
+		name published
+		type bool
+		default false
+	}
 }
 
 -- simpletable2.scd.golden --
@@ -139,13 +142,7 @@ set table.book db.table{
 			[0]audit
 		[2]column(key)
 			[0]db.column
-			[1](struct)
-				[0]name(key)
-					[0]pages
-				[1]type(key)
-					[0]int
-				[2]default(key)
-					[0]X
+			[1]
 		[3]column(key)
 			[0]db.column
 			[1](struct)
@@ -162,36 +159,40 @@ set table.book db.table{
 	tags softdelete, audit
 	// This columns won't have a type when initially parsing, but that is okay, the type will be known from db.table.columns type.
 	// We know that this is a table/list because it uses "()" rather then "{}".
-	column db.column{name id; type key(int); deault serial;}
-	column db.column{name name; type text(1000); default X;}
-	column db.column{name page; type int; default X;}
-	column db.column{name genre; type fk(int, table.genre.id); default X;}
-	column db.column{name published; type bool; default false;}
+	column db.column{|
+		name         | type                    | default 
+		// id        | key(int)                | serial 
+		//name       | text(1000)              | X
+		pages        | int                     | X
+		pages2       | int2                    | X2
+		// genre     | fk(int, table.genre.id) | X
+		// published | bool                    | false
+	}
+	column db.column{
+		name    published
+		type    bool
+		default false
+	}
 }
 
 -- table.scd.golden --
-[0]set(key)
+
+[1]set(key)
 	[0]table.book
 	[1]db.table
 	[2](struct)
-		[0]tags(key)
-			[0]softdelete
-		[1]tags(key)
-			[0]audit
-		[2]column(key)
-			[0]db.column
-			[1](struct)
+		[0]column(key)
+			[0](struct)
 				[0]name(key)
 					[0]id
 				[1]type(key)
 					[0]key
 					[1](list)
 						[0]int
-				[2]deault(key)
+				[2]default(key)
 					[0]serial
-		[3]column(key)
-			[0]db.column
-			[1](struct)
+		[1]column(key)
+			[0](struct)
 				[0]name(key)
 					[0]name
 				[1]type(key)
@@ -199,19 +200,15 @@ set table.book db.table{
 					[1](list)
 						[0]1000
 				[2]default(key)
-					[0]X
-		[4]column(key)
-			[0]db.column
-			[1](struct)
+		[2]column(key)
+			[0](struct)
 				[0]name(key)
-					[0]page
+					[0]pages
 				[1]type(key)
 					[0]int
-				[2]default(key)
-					[0]X
-		[5]column(key)
-			[0]db.column
-			[1](struct)
+				[1]default(key)
+		[3]column(key)
+			[0](struct)
 				[0]name(key)
 					[0]genre
 				[1]type(key)
@@ -220,13 +217,44 @@ set table.book db.table{
 						[0]int
 						[1]table.genre.id
 				[2]default(key)
-					[0]X
-		[6]column(key)
-			[0]db.column
-			[1](struct)
+		[4]column(key)
+			[0](struct)
 				[0]name(key)
 					[0]published
 				[1]type(key)
 					[0]bool
 				[2]default(key)
 					[0]false
+
+-- table.old --
+
+	data (|
+		a | b | c
+		d | e | f
+		// g | h | i
+		// j | k | l
+	)
+	data (g, h, i)
+	data (j, k, l)
+
+
+		[5]data(key)
+			[0](list)
+				[0]a
+				[1]b
+				[2]c
+		[6]data(key)
+			[0](list)
+				[0]d
+				[1]e
+				[2]f
+		[7]data(key)
+			[0](list)
+				[0]g
+				[1]h
+				[2]i
+		[8]data(key)
+			[0](list)
+				[0]j
+				[1]k
+				[2]l

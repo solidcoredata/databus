@@ -21,6 +21,7 @@ const (
 	groupTable                 // At the "{|"
 	groupTableHead             // First line of the table.
 	groupTableData             // All lines except the first line.
+	groupTableDataValue
 )
 
 type parseLine struct {
@@ -31,7 +32,9 @@ type parseLine struct {
 	Identifier parseIdentifier
 	Sent       bool
 
-	Header *parseTableHeader
+	Prefix         []*parseLine      // Prefix for a data table.
+	Header         *parseTableHeader // Header for a data table.
+	DataValueIndex int               // Index of the current data row parse.
 }
 
 func (line *parseLine) String() string {
@@ -222,6 +225,43 @@ type lineEmitter struct {
 	all []*parseLine
 }
 
+const trace = false
+
+func tracef(f string, a ...interface{}) {
+	if !trace {
+		return
+	}
+	fmt.Printf(f, a...)
+}
+func traceln(a ...interface{}) {
+	if !trace {
+		return
+	}
+	fmt.Println(a...)
+}
+
+func (e *lineEmitter) groupEnd() {
+	e.EmitLine(e.Build)
+	e.Build = nil
+
+	parent := e.Current
+	for i := 0; i < 3; i++ {
+		parent = parent.Parent
+		if parent == nil {
+			panic("parent search is returned nil parent")
+		}
+		switch parent.Group {
+		case groupListValue:
+			e.Current = parent
+			return
+		case groupStruct:
+			e.Current = parent
+			return
+		}
+	}
+	panic("parent not found")
+}
+
 func (e *lineEmitter) eatIdentifier(lt lexToken) (next *parseLine, err error) {
 	switch lt.Type {
 	default:
@@ -274,7 +314,18 @@ func (e *lineEmitter) eatIdentifier(lt lexToken) (next *parseLine, err error) {
 			ListOrStructKey := e.Current.Parent
 			switch ListOrStructKey.Group {
 			default:
-				panic("unexpected group type")
+				panic(fmt.Errorf("unexpected group type %v", ListOrStructKey.Group))
+			case groupTableData:
+				next = e.Build
+				e.Build = &parseLine{
+					Parent:     ListOrStructKey,
+					Group:      groupTableData,
+					Identifier: parseIdentifier{Parts: []lexToken{lt}},
+				}
+				if ListOrStructKey.LastChild != nil {
+					e.Build.Index = ListOrStructKey.LastChild.Index + 1
+				}
+				ListOrStructKey.LastChild = e.Build
 			case groupList:
 				err = terr("unexpected token in list", lt)
 			case groupStructKey:
@@ -290,7 +341,7 @@ func (e *lineEmitter) eatIdentifier(lt lexToken) (next *parseLine, err error) {
 				ListOrStructKey.LastChild = e.Build
 			}
 
-		case e.Build != nil && e.Build.Identifier.canAppend():
+		case e.Build.Identifier.canAppend():
 			e.Build.Identifier.Parts = append(e.Build.Identifier.Parts, lt)
 			e.Build.Identifier.Dot = false
 		}
@@ -339,7 +390,7 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			}
 			list.LastChild = e.Current
 		case m.ListEnd():
-			e.Current = e.Current.Parent
+			e.groupEnd()
 		case m.EOS():
 			// Nothing.
 		}
@@ -358,20 +409,11 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			e.Build = nil
 			e.Current = e.Current.Parent
 		case m.ListEnd():
-			next = e.Build
-			e.Build = nil
-			value := e.Current
-			list := value.Parent
-			listParent := list.Parent
-			if listParent.Group == groupTableData {
-				e.Current = listParent
-			} else {
-				e.Current = listParent.Parent
-			}
+			e.groupEnd()
 		}
 	case groupStruct:
 		// Identifier, "}", "|".
-		fmt.Printf("\n\nGROUP STRUCT: %s\n\n", lt)
+		tracef("GROUP STRUCT: %s\n", lt)
 		switch {
 		default:
 			return terr("unexpected struct token", lt)
@@ -388,24 +430,17 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			gStruct.LastChild = e.Current
 			next = e.Current
 		case m.StructEnd():
-			structParent := e.Current.Parent
-			if structParent != nil {
-				if structParent.Group == groupTableData {
-					e.Current = structParent
-				} else {
-					e.Current = structParent.Parent
-				}
-			}
+			e.groupEnd()
 		case m.Pipe():
 			e.Current.Group = groupTable
 			e.Current.Header = &parseTableHeader{}
-			fmt.Printf("\n\nPIPE (set TABLE): %s\n\n", lt)
+			tracef("PIPE (set TABLE): %s\n", lt)
 		case m.EOS():
 			// Nothing.
 		}
 	case groupStructKey:
 		// Value, "}".
-		fmt.Printf("\n\nGROUP STRUCT KEY: %s\n\n", lt)
+		tracef("GROUP STRUCT KEY: %s\n", lt)
 		switch {
 		default:
 			return terr("unexpected struct key token", lt)
@@ -419,20 +454,25 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			key.LastChild = e.Current
 			e.Build = e.Current
 		case m.StructEnd():
-			gStruct := e.Current.Parent
-			e.Current = gStruct.Parent.Parent
+			e.groupEnd()
 		case m.EOS():
 			// Nothing.
 		}
 	case groupStructValue:
 		// Value, ",", "}" EOS.
-		fmt.Printf("\n\nGROUP STRUCT VALUE: %s\n\n", lt)
+		tracef("GROUP STRUCT VALUE: %s\n", lt)
 		switch {
 		default:
 			return terr("unexpected struct value token", lt)
 		case m.Value():
 			next, err = e.eatIdentifier(lt)
+			if next != nil {
+				e.Current.Parent.Prefix = append(e.Current.Parent.Prefix, next)
+			}
 		case m.Comma():
+			if e.Build != nil {
+				e.Current.Parent.Prefix = append(e.Current.Parent.Prefix, e.Build)
+			}
 			e.EmitLine(e.Build)
 			key := e.Current.Parent
 			e.Current = &parseLine{
@@ -451,16 +491,13 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			gStruct := key.Parent
 			e.Current = gStruct
 		case m.StructEnd():
-			next = e.Build
-			e.Build = nil
-
-			key := e.Current.Parent
-			gStruct := key.Parent
-			e.Current = gStruct.Parent
+			e.groupEnd()
+		case m.Pipe() && e.Current.Parent.Group == groupTableData:
+			// TODO
 		}
 	case groupTable:
 		// Identifier, "}", EOS.
-		fmt.Printf("\n\nGROUP TABLE: %s\n\n", lt)
+		tracef("GROUP TABLE: %s\n", lt)
 		switch {
 		default:
 			return terr("unexpected table token", lt)
@@ -470,10 +507,10 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			default:
 				return terr("unexpected identifier in table header", lt)
 			case h.canAppend():
-				fmt.Println("\nHEADER APPEND")
+				traceln("HEADER APPEND")
 				h.append(lt)
 			}
-			fmt.Printf("data table line: %v\n", e.Current.Header.Parts)
+			tracef("data table line: %v\n", e.Current.Header.Parts)
 		case m.Pipe():
 			h := e.Current.Header
 			switch {
@@ -482,46 +519,50 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 			case h.canAddPipe():
 				h.Pipe = true
 			}
-			fmt.Printf("data table line: %v\n", e.Current.Header.Parts)
+			tracef("data table line: %v\n", e.Current.Header.Parts)
 		case m.StructEnd():
-			// TODO
-			next = e.Build
-			e.Build = nil
-
-			key := e.Current.Parent
-			gStruct := key.Parent
-			e.Current = gStruct.Parent
+			e.groupEnd()
 		case m.EOS():
-			fmt.Printf("data table line: %v\n", e.Current.Header.Parts)
+			tracef("data table line: %v\n", e.Current.Header.Parts)
 			if len(e.Current.Header.Parts) > 0 {
 				e.Current.Group = groupTableData
 			}
 		}
 	case groupTableHead:
 		// Identifier, "}", "|", EOS.
-		fmt.Printf("\n\nGROUP TABLE HEAD: %s\n\n", lt)
+		tracef("GROUP TABLE HEAD: %s\n", lt)
 		return terr("bad case, just using table state", lt)
 	case groupTableData:
 		// Value, "}", "|", EOS.
-		fmt.Printf("\n\nGROUP TABLE DATA: %s\n\n", lt)
+		tracef("GROUP TABLE DATA: %s\n", lt)
 		switch {
 		default:
 			return terr("unexpected table token", lt)
 		case m.Value():
-			next, err = e.eatIdentifier(lt)
+			next = e.Build
+			e.Build = nil
+
+			// Start of a data row.
+			// Add in a struct key.
+			list := e.Current
+
+			e.Build = &parseLine{
+				Parent:     list,
+				Group:      groupStructValue,
+				Identifier: parseIdentifier{Parts: []lexToken{lt}},
+			}
+			e.Current = e.Build
+			if list.LastChild != nil {
+				e.Build.Index = list.LastChild.Index + 1
+			}
+			list.LastChild = e.Current
 		case m.Pipe():
 			next = e.Build
 			e.Build = nil
 		case m.StructEnd():
-			// TODO
-			next = e.Build
-			e.Build = nil
-
-			key := e.Current.Parent
-			gStruct := key.Parent
-			e.Current = gStruct.Parent
+			e.groupEnd()
 		case m.EOS():
-			fmt.Printf("data table line: %v\n", e.Current.Header.Parts)
+			tracef("data table line: %v\n", e.Current.Header.Parts)
 			next = e.Build
 			e.Build = nil
 
@@ -534,6 +575,16 @@ func (e *lineEmitter) EmitToken(lt lexToken) error {
 				b.Index = parent.LastChild.Index + 1
 			}
 			e.Build = b
+		}
+	case groupTableDataValue:
+		switch {
+		default:
+			return terr("unexpected table data value token", lt)
+		case m.Value():
+			next, err = e.eatIdentifier(lt)
+		case m.Pipe():
+			// End value
+		case m.EOS():
 		}
 	}
 	if err != nil {
@@ -558,6 +609,6 @@ func (e *lineEmitter) EmitLine(line *parseLine) error {
 	line.Sent = true
 
 	e.all = append(e.all, line)
-	fmt.Println(line)
+	traceln(line)
 	return nil
 }
