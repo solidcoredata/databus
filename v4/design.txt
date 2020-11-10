@@ -1,0 +1,83 @@
+type {
+	Name Tag
+	Field {Name Option; Requred true; Repeat true; Resolve Tag.Option}
+}
+type {
+	Name Tag.Option
+	Field {Name Name; Resolve Simple.Text}
+}
+
+type {
+	Name Table
+	Field {Name Tag; Repeat true; Resolve Tag.Option.Name}
+	Field {Name Column; Required true; Repeat true; Resolve Table.Column}
+}
+
+type {
+	Name FK
+	Field {Name Type; Required true; Index 0; Resolve Simple}
+}
+type {
+	Name PK
+	Field {Name Type; Required true; Index 0; Resolve Simple}
+}
+
+type {
+	Name Table.Column
+	Field {Name Name; Required true; Resolve Simple.Text}
+	Field {Name Nullable; Required false; Default false; Resolve Simple.Bool}
+	Field {Name Type; Required true; Resolve Simple | FK | PK}
+}
+type {
+	Name Simple.Text
+	Field {Name Max; Index 0; Required: false; Resolve Simple.Int64; Description "Maximum length of text field."}
+}
+type {
+	Name Simple.Int64
+	Field {Name Min; Index 0; Required: false; Resolve Simple.Int64; Description "Minimum value of integer field."}
+	Field {Name Max; Index 1; Required: false; Resolve Simple.Int64; Description "Maximum value of integer field."}
+}
+
+
+Tag {
+	Option {Name HardDelete}
+	Option {Name NoAudit}
+}
+
+Tag:MyApp {
+	Option {Name Authentication}
+}
+
+Table {
+	Name Book
+	Tag NoAudit
+	Column {Name ID; Type PK(Int64)}
+	column {Name Title; Type Text(100)}
+}
+
+type {
+	Name UI.Field
+	Field {Name Text; Required false; Repeat true; Resolve UI.Field.Text}
+}
+type {
+	Name UI.Field.Text
+	Field {Name Field; Required true; Repeat false; Resolve Simple.Text}
+	Field {Name Display; Required true; Repeat false; Resolve Simple.Text}
+	Field {Name ReadOnly; Required false; Default: false; Repeat false; Resolve Simple.Bool}
+}
+
+type {
+	Name SearchListDetail
+	Field {Name ColumnList; Required true; Resolve UI.Field}
+}
+
+SearchListDetail {
+	Name MyApp.MyBooks
+	ColumnList {
+		// We say the type first, so we know what properties it has.
+		// For configuration, we don't want to be in the business of requiring names
+		// everywhere just to declare something.
+		Text {Field Title; Display "Book Title"; ReadOnly true}
+		Number {Field PageCount; Display "Page Count; ReadOnly true}
+	}
+}
