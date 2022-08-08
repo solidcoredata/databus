@@ -1,0 +1,105 @@
+DB
+	Table 1
+		Column A
+		Column B
+	Table 2
+		Column C
+		Column D
+
+Query
+	Query 1
+		Table 1
+			Column B
+		Table 2
+			Column D
+		Computed
+			Column E
+
+Screen
+	Screen 1
+		Filter
+			Table 1
+				Column A Filter
+				Column B Filter
+				Filter F
+		Table
+			Query 1
+				Column B
+				Column D
+				Column E
+
+link DB -> Table
+link Table -> Column
+link Query -> Table
+link screen -> Table
+
+Every column in every table in every database creates end points.
+Every UI field creates end points.
+
+An applicaion definition is created when you put string together end points, possibly through intermediate nodes.
+
+endpoint column.
+
+// Column endpoint refers to a single column endpoint instance.
+<DB>.<schema>.<table>.<column>[ID]
+LibraryDB.checkout.book.Title[ID=123]
+
+// Field endpoint refers to a single field instance.
+<App>.<Screen>.<Control>.<Field>
+Internal.Checkout.Detail.Title
+
+
+---
+
+I envision components "wired" together in a harness.
+Each harness is comprised of one or more bundles.
+Each bundle is comprised of one or more wires that share cardinality.
+Each wire has a name, a type, and a direction (in, out in-out).
+More properties may be bound to the wire.
+
+ref LibraryDB/Table/Book/Column/BookName/Type
+
+A query is a special type of node that has one harness input and one harness output.
+
+Data comes through the harness in signals. Ignore details of this.
+
+---
+
+let LibraryDB DB
+
+let LibraryDB/Table/Book Table
+
+Column {
+	ID {PK}
+	Name {Type: Text, MaxLength: 400, Display: "Book Name"}
+	Genre {FK: LibraryDB/Table/Genre}
+}
+
+
+let LibraryApp App
+
+let LibraryApp/Screen/Search SearchListDetail
+
+Connect {
+	Field LibraryDB/Table/Book/Column
+}
+
+Field {
+	Name {Width 100}
+}
+
+let LibraryDB/Query/Book Query
+
+Read query{
+	param Genre
+	from LibraryDB/Table/Book b
+	and exists query {
+		from LibraryDB/Table/BookGenre bg
+		and bg.Book = b.ID
+		and bg.Genre = Genre
+	}
+	select b.ID, b.Name "Book Name"
+}
+
+---
+

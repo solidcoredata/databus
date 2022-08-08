@@ -1,83 +1,238 @@
-type {
-	Name Tag
-	Field {Name Option; Requred true; Repeat true; Resolve Tag.Option}
-}
-type {
-	Name Tag.Option
-	Field {Name Name; Resolve Simple.Text}
+Tag type {}
+
+// Open Question: Probably need a bind to a database/store somewhere too.
+
+Table type {
+	// Open Question: This "is" isn't quite accurate. I think a bind from the database would be better.
+	Tag field {repeat true; is Tags}
+	Column field {required true; repeat true; is TableColumn}
 }
 
-type {
-	Name Table
-	Field {Name Tag; Repeat true; Resolve Tag.Option.Name}
-	Field {Name Column; Required true; Repeat true; Resolve Table.Column}
+// Open Question: How to best restrict / allow multiple types.
+
+FK type {
+	Type field {required true; index 0; is TableColumnTypeKey}
+}
+PK type {
+	Type field {required true; index 0; is TableColumnTypeKey}
 }
 
-type {
-	Name FK
-	Field {Name Type; Required true; Index 0; Resolve Simple}
+TableColumnType union {
+	allow TableColumnTypeKey, PK, FK
 }
-type {
-	Name PK
-	Field {Name Type; Required true; Index 0; Resolve Simple}
+TableColumnTypeKey union {
+	allow int64, text, decimal, bool
 }
 
-type {
-	Name Table.Column
-	Field {Name Name; Required true; Resolve Simple.Text}
-	Field {Name Nullable; Required false; Default false; Resolve Simple.Bool}
-	Field {Name Type; Required true; Resolve Simple | FK | PK}
+TableColumn type {
+	Name field {required true; is text}
+	Nullable field {required false; default false; is bool}
+	Type field {required true; is Simple FK PK}
 }
-type {
-	Name Simple.Text
-	Field {Name Max; Index 0; Required: false; Resolve Simple.Int64; Description "Maximum length of text field."}
+text type {
+	field {Name Max; index 0; required: false; is Simple.Int64; description "Maximum length of text field."}
 }
-type {
-	Name Simple.Int64
-	Field {Name Min; Index 0; Required: false; Resolve Simple.Int64; Description "Minimum value of integer field."}
-	Field {Name Max; Index 1; Required: false; Resolve Simple.Int64; Description "Maximum value of integer field."}
+int64 type {
+	Min field {index 0; required: false; is int64; description "Minimum value of integer field."}
+	Max field {index 1; required: false; is int64; description "Maximum value of integer field."}
 }
-
-
-Tag {
-	Option {Name HardDelete}
-	Option {Name NoAudit}
+slot type {
+	dest field {is path}
+	repeat field {default false; is bool}
 }
 
-Tag:MyApp {
-	Option {Name Authentication}
+// I'm not sure what to do about tags right now.
+HardDelete Tag
+NoAudit Tag
+Authentication Tag
+
+Tags union {
+	allow HardDelete, NoAudit, Authentication
 }
 
-Table {
-	Name Book
+Book Table {
 	Tag NoAudit
-	Column {Name ID; Type PK(Int64)}
-	column {Name Title; Type Text(100)}
+	Column TableColumn {
+		{Name ID; Type PK(Int64)}
+		{Name Title; Type Text(100)}
+	}
 }
 
-type {
-	Name UI.Field
-	Field {Name Text; Required false; Repeat true; Resolve UI.Field.Text}
-}
-type {
-	Name UI.Field.Text
-	Field {Name Field; Required true; Repeat false; Resolve Simple.Text}
-	Field {Name Display; Required true; Repeat false; Resolve Simple.Text}
-	Field {Name ReadOnly; Required false; Default: false; Repeat false; Resolve Simple.Bool}
+Text type {
+	Grid slot
+	Field field {required true; repeat false; is $.Grid.Column.Name}
+	Display field {required true; repeat false; default $.Grid.Column.Display; is text}
+	ReadOnly field {required false; repeat false; default: false; is bool}
 }
 
-type {
-	Name SearchListDetail
-	Field {Name ColumnList; Required true; Resolve UI.Field}
+// Open Question: Default values can be a const, but they can also be an expression
+// 		Any expression will depend on the runtime inputs and outputs.
+//		This can be defined statically, but unsure of what to do about definition.
+
+Number type {
+	Grid slot
+	Field field {required true; repeat false; is $.Grid.Column.Name}
+	Display field {required true; repeat false; default $.Grid.Column.Display; is text}
+	ReadOnly field {required false; repeat false; default: false; is bool}
 }
 
-SearchListDetail {
-	Name MyApp.MyBooks
+UIField union {
+	allow Text, Number
+}
+
+// Open Question: How to specify a generic type / interface for "is".
+
+SearchListDetail type {
+	Bind slot {dest $.ColumnList.Grid}
+	ColumnList field {required true; repeat true; is UIField}
+}
+
+MyBooks SearchListDetail {
+	Bind Book
 	ColumnList {
 		// We say the type first, so we know what properties it has.
 		// For configuration, we don't want to be in the business of requiring names
 		// everywhere just to declare something.
 		Text {Field Title; Display "Book Title"; ReadOnly true}
+		Break
 		Number {Field PageCount; Display "Page Count; ReadOnly true}
 	}
 }
+
+Query type {
+	Bind slot{dest X; repeat: true}
+	
+}
+
+/*
+	type Identifier doesn't require quotes.
+	type Text/String does require quotes.
+
+	FieldName Value
+	Value = string | int64 | Type{}
+	FieldName Type {<optional values}
+	FieldName Type {
+		FieldName Type{}
+	}
+*/
+
+/*
+	The key with the "is", is the Value Type (in the Field Value pair)
+	needs to be able to be resolved from a smaller set then the entire world.
+
+	So perhaps we should:
+	 * Define a type that has a list of other possible types.
+	 * We allow that list to be expanded by other uses within a package.
+	 * Only allow the extensions to exist within the package it is defined in to prevent unintended naming conflicts.
+
+	This makes sense to me because:
+	 * A given database/implementation will only support a set number of types, practically speaking.
+	 * A given UI will only support a set number of types, practically speaking.
+*/
+
+/*
+	After unions and contexts are figured out:
+
+	Expressions.
+
+	Expressions include Queries, Default values, UI side application logic.
+	In all of these, I think we can make a case for being able to specify
+	the inputs and outputs of the expressions. Then we could "shell out"
+	to the individual expressions by name.
+
+	Expression specific utilities could ensure the input and output expressions
+	match the environment, validate the expressions, and translate them
+	as needed into their final form:
+	 * Part of a program executable.
+	 * A SQL Expression.
+	 * Javascript / Typescript.
+	
+	This gets a little bit dicy. I don't know how this will actually function.
+	The key would be defining the interface between the configuration environment
+	and the expression environment.
+*/
+
+/*
+	# application structure - stateful
+
+	server
+		database
+			table
+				column -> types / table.column
+
+	server
+		database
+			table
+				role
+				column -> column
+	
+	# application structure - stateless
+
+	application
+		screen
+			pane
+				grid
+					source -> database.table
+						field -> column
+	
+	application
+		workflow
+			flow
+				node
+					pointer -> screen / pane
+			state
+				table
+					column
+			screen
+				pane
+	
+	cli
+		action
+			action
+				flags
+				arguments
+
+
+	transform
+		input
+			set
+				column
+		output
+			set
+				column
+
+	# procedural plugs
+	
+	The structure creates spots where procedural logic must or may be defined.
+
+	# framework structure
+
+	Defines a set of structures to be used with the application type.
+
+	# framework implementation
+
+	Combines a compiled set of structures, a framework structure and an application structure.
+	
+	# final
+
+	Combines:
+	 * faamework structure,
+	 * famework implementation,
+	 * application structures,
+	 * and application procures.
+	Results in a server or CLI.
+
+
+	Table Foo
+		ID
+		Name
+	Table Fii
+		ID
+		Foo -> Foo.ID
+	
+	Table type
+		Link To Table
+		Link to Column
+		Foo Reference Foo.ID
+*/
+
